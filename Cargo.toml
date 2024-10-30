@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "native", "db", "shared", "query"
+]
+resolver = "2"

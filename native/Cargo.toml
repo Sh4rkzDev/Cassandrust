@@ -1,0 +1,12 @@
+[package]
+name = "native"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+shared = { path = "../shared" }
+query = { path = "../query" }
+
+[lib]
+name = "native"
+path = "src/lib.rs"
