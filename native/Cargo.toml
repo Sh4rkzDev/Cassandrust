@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 shared = { path = "../shared" }
 query = { path = "../query" }
+db = { path = "../db" }
 
 [lib]
 name = "native"

@@ -18,7 +18,6 @@ pub struct QueryMsg {
     pub query: Query,
     pub consistency: ConsistencyLevel,
     pub flags: u8,
-    pub page_size: i32,
 }
 
 impl QueryMsg {
@@ -34,7 +33,6 @@ impl QueryMsg {
             table,
             consistency,
             flags,
-            page_size: 0,
         })
     }
 

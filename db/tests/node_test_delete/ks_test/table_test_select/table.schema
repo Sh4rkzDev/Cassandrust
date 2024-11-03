@@ -1,0 +1,6 @@
+id int
+name text
+age int
+email text
+PARTITION_KEY name
+CLUSTERING_KEY id age

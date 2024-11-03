@@ -92,7 +92,7 @@ impl Error {
         self.extras.insert(key, value);
     }
 
-    pub fn read_error<R: Read>(reader: &mut R) -> std::io::Result<(Error, u32)> {
+    pub fn read<R: Read>(reader: &mut R) -> std::io::Result<(Error, u32)> {
         let mut code_buffer = [0u8; 4];
         reader.read_exact(&mut code_buffer)?;
         let code = i32::from_be_bytes(code_buffer);
@@ -176,7 +176,7 @@ impl Error {
         ))
     }
 
-    pub fn write_error<W: Write>(&self, writer: &mut W) -> std::io::Result<u32> {
+    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<u32> {
         writer.write_all(&(self.code as i32).to_be_bytes())?;
         let mut bytes_written = 4;
 
@@ -325,8 +325,8 @@ mod tests {
         );
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -339,8 +339,8 @@ mod tests {
         );
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -353,8 +353,8 @@ mod tests {
         );
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -367,8 +367,8 @@ mod tests {
         error.add_extra("alive".to_string(), "0".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -378,8 +378,8 @@ mod tests {
         let error = Error::new(ErrorCode::Overloaded, "Overloaded".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -389,8 +389,8 @@ mod tests {
         let error = Error::new(ErrorCode::Bootstrapping, "Bootstrapping".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -405,8 +405,8 @@ mod tests {
         error.add_extra("data_present".to_string(), "1".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -421,8 +421,8 @@ mod tests {
         error.add_extra("write_type".to_string(), "SIMPLE".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -432,8 +432,8 @@ mod tests {
         let error = Error::new(ErrorCode::SyntaxError, "Syntax error".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -443,8 +443,8 @@ mod tests {
         let error = Error::new(ErrorCode::Unauthorized, "Unauthorized".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -454,8 +454,8 @@ mod tests {
         let error = Error::new(ErrorCode::Invalid, "Invalid".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -465,8 +465,8 @@ mod tests {
         let error = Error::new(ErrorCode::ConfigError, "Config error".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -478,8 +478,8 @@ mod tests {
         error.add_extra("table".to_string(), "tbl".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -489,8 +489,8 @@ mod tests {
         let error = Error::new(ErrorCode::Unprepared, "Unprepared".to_string());
 
         let mut buffer = Vec::new();
-        error.write_error(&mut buffer).unwrap();
-        let (read_error, _) = Error::read_error(&mut buffer.as_slice()).unwrap();
+        error.write(&mut buffer).unwrap();
+        let (read_error, _) = Error::read(&mut buffer.as_slice()).unwrap();
 
         assert_eq!(error, read_error);
     }
@@ -502,7 +502,7 @@ mod tests {
         error.add_extra("required".to_string(), "1".to_string());
 
         let mut buffer = Vec::new();
-        assert!(error.write_error(&mut buffer).is_err());
+        assert!(error.write(&mut buffer).is_err());
     }
 
     #[test]
@@ -514,7 +514,7 @@ mod tests {
         error.add_extra("failures".to_string(), "1".to_string());
 
         let mut buffer = Vec::new();
-        assert!(error.write_error(&mut buffer).is_err());
+        assert!(error.write(&mut buffer).is_err());
     }
 
     #[test]
@@ -526,7 +526,7 @@ mod tests {
         error.add_extra("failures".to_string(), "1".to_string());
 
         let mut buffer = Vec::new();
-        assert!(error.write_error(&mut buffer).is_err());
+        assert!(error.write(&mut buffer).is_err());
     }
 
     #[test]
@@ -535,6 +535,6 @@ mod tests {
         error.add_extra("keyspace".to_string(), "ks".to_string());
 
         let mut buffer = Vec::new();
-        assert!(error.write_error(&mut buffer).is_err());
+        assert!(error.write(&mut buffer).is_err());
     }
 }

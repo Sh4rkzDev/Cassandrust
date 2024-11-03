@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 /// A short (u16) representing possibles consistency levels.
+#[derive(Debug, PartialEq, Clone)]
 pub enum ConsistencyLevel {
     Any = 0x0000,
     One = 0x0001,

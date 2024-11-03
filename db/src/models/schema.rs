@@ -1,11 +1,10 @@
 use std::{
     collections::HashMap,
     fmt::Display,
-    fs::File,
-    io::{BufRead, BufReader, Write},
-    path::{Path, PathBuf},
+    io::{BufRead, BufReader, BufWriter, Read, Write},
 };
 
+use chrono::DateTime;
 use shared::{io_error, map_io_error};
 
 use super::primary_key::PrimaryKey;
@@ -50,10 +49,7 @@ impl SchemaType {
             "int" => Ok(SchemaType::Int),
             "text" => Ok(SchemaType::Text),
             "timestamp" => Ok(SchemaType::Timestamp),
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Invalid schema type",
-            )),
+            _ => Err(io_error!("Invalid schema type")),
         }
     }
 
@@ -110,34 +106,21 @@ impl SchemaType {
         self.check_type(val2)?;
         match self {
             SchemaType::Boolean => {
-                let val1 = val1
-                    .parse::<bool>()
-                    .map_err(map_io_error!(format!("Invalid value: {val1}")))?;
-                let val2 = val2
-                    .parse::<bool>()
-                    .map_err(map_io_error!(format!("Invalid value: {val2}")))?;
+                let val1 = val1.parse::<bool>().unwrap();
+                let val2 = val2.parse::<bool>().unwrap();
                 Ok(val1.cmp(&val2))
             }
             SchemaType::Float => {
-                let val1 = val1
-                    .parse::<f32>()
-                    .map_err(map_io_error!(format!("Invalid value: {val1}")))?;
-                let val2 = val2
-                    .parse::<f32>()
-                    .map_err(map_io_error!(format!("Invalid value: {val2}")))?;
+                let val1 = val1.parse::<f32>().unwrap();
+                let val2 = val2.parse::<f32>().unwrap();
                 Ok(val1.total_cmp(&val2))
             }
             SchemaType::Int => {
-                let val1 = val1
-                    .parse::<i32>()
-                    .map_err(map_io_error!(format!("Invalid value: {val1}")))?;
-                let val2 = val2
-                    .parse::<i32>()
-                    .map_err(map_io_error!(format!("Invalid value: {val2}")))?;
+                let val1 = val1.parse::<i32>().unwrap();
+                let val2 = val2.parse::<i32>().unwrap();
                 Ok(val1.cmp(&val2))
             }
-            SchemaType::Text => Ok(val1.cmp(val2)),
-            SchemaType::Timestamp => Ok(val1.cmp(val2)),
+            SchemaType::Text | SchemaType::Timestamp => Ok(val1.cmp(val2)),
         }
     }
 
@@ -145,27 +128,34 @@ impl SchemaType {
         match self {
             SchemaType::Boolean => {
                 if value != "true" && value != "false" {
-                    return Err(io_error!("Invalid boolean value"));
+                    Err(io_error!("Invalid boolean value"))
+                } else {
+                    Ok(())
                 }
             }
             SchemaType::Float => {
                 if value.parse::<f32>().is_err() {
-                    return Err(io_error!("Invalid float value"));
+                    Err(io_error!("Invalid float value"))
+                } else {
+                    Ok(())
                 }
             }
             SchemaType::Int => {
                 if value.parse::<i32>().is_err() {
-                    return Err(io_error!("Invalid int value"));
+                    Err(io_error!("Invalid int value"))
+                } else {
+                    Ok(())
                 }
             }
-            SchemaType::Text => {}
-            SchemaType::Timestamp => {} // TODO: Add timestamp validation with chrono
+            SchemaType::Text => Ok(()),
+            SchemaType::Timestamp => DateTime::parse_from_rfc3339(value)
+                .map_err(map_io_error!("Invalid timestamp value"))
+                .map(|_| ()),
         }
-        Ok(())
     }
 }
 
-/// Represents the schema of a table.
+/// Represents the schema of a table.  
 /// The schema contains the columns and the primary key.  
 /// Each column has a name and a data type and is used to parse the data from the table.  
 /// The primary key contains the partition key and the clustering key.
@@ -186,6 +176,8 @@ impl Schema {
 
     /// Returns a function that parses the data in form of bytes for the specified column.
     /// This function returns a string representation of the data from the bytes.
+    ///
+    /// Useful for bound variables in the query.
     pub fn get_parse_function(
         &self,
         column_name: &str,
@@ -214,19 +206,27 @@ impl Schema {
             .and_then(|schema_type| schema_type.check_type(value))
     }
 
-    pub(crate) fn read_schema_file(path: &Path) -> std::io::Result<Self> {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
+    /// Reads the schema from the specified reader.
+    ///
+    /// ** The reader **must not** be a buffered reader. **
+    /// This function is in charge of buffering the reader.
+    ///
+    /// The schema source must have the following format:
+    /// - For each column, the line must have the column name and the data type separated by a space.
+    /// - The `PARTITION_KEY` line must have the keyword `PARTITION_KEY` followed by the partition key columns separated by spaces.
+    /// - The `CLUSTERING_KEY` line must have the keyword `CLUSTERING_KEY` followed by the clustering key columns separated by spaces.
+    pub(crate) fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut columns = HashMap::new();
         let mut partition_key = Vec::new();
         let mut clustering_key = Vec::new();
 
+        let reader = BufReader::new(reader);
         for line in reader.lines() {
             let line = line?;
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() < 2 {
                 return Err(io_error!(
-                    "Invalid schema file: each line must have at least two parts. Error Line: "
+                    "Invalid schema: each line must have at least two parts. Error Line: "
                         .to_owned()
                         + &line
                 ));
@@ -246,26 +246,194 @@ impl Schema {
             }
         }
         if partition_key.is_empty() {
-            return Err(io_error!("Invalid schema file: no PARTITION_KEY found"));
+            return Err(io_error!("Invalid schema: no PARTITION_KEY found"));
         }
-        return Ok(Schema {
+        Ok(Schema {
             columns,
             primary_key: PrimaryKey::new(partition_key, clustering_key),
-        });
+        })
     }
 
-    pub(crate) fn write_schema_file(&self, table_dir: &PathBuf) -> std::io::Result<()> {
-        let mut file = File::create(table_dir.join("table.schema"))?;
+    /// Writes the schema to the specified writer.
+    ///
+    /// ** The writer **must not** be a buffered writer. **
+    /// This function is in charge of buffering the writer.
+    ///
+    /// The schema is written in the following format:
+    /// - For each column, the line has the column name and the data type separated by a space.
+    /// - The `PARTITION_KEY` line has the keyword `PARTITION_KEY` followed by the partition key columns separated by spaces.
+    /// - The `CLUSTERING_KEY` line has the keyword `CLUSTERING_KEY` followed by the clustering key columns separated by spaces.
+    pub(crate) fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let mut writer = BufWriter::new(writer);
         for (column, schema_type) in &self.columns {
-            file.write_fmt(format_args!("{} {}\n", column, schema_type))?;
+            writer.write_fmt(format_args!("{column} {schema_type}\n"))?;
         }
-        file.write_fmt(format_args!(
+        writer.write_fmt(format_args!(
             "PARTITION_KEY {}\n",
             self.primary_key.get_partition_key().join(" ")
         ))?;
-        file.write_fmt(format_args!(
+        writer.write_fmt(format_args!(
             "CLUSTERING_KEY {}\n",
             self.primary_key.get_clustering_key().join(" ")
-        ))
+        ))?;
+        writer.flush()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{collections::HashSet, io::Cursor};
+
+    #[test]
+    fn test_schema_serde() {
+        let mut columns = HashMap::new();
+        columns.insert("id".to_string(), SchemaType::Int);
+        columns.insert("name".to_string(), SchemaType::Text);
+        let schema = Schema::new(
+            columns,
+            PrimaryKey::new(vec!["id".to_string()], vec!["name".to_string()]),
+        );
+        let mut buffer = Cursor::new(Vec::new());
+        schema.write(&mut buffer).unwrap();
+        buffer.set_position(0);
+        let read_schema = Schema::read(&mut buffer).unwrap();
+        assert_eq!(
+            schema.get_columns().iter().collect::<HashSet<_>>(),
+            read_schema.get_columns().iter().collect::<HashSet<_>>()
+        );
+        assert_eq!(
+            schema.get_primary_key().get_partition_key(),
+            read_schema.get_primary_key().get_partition_key()
+        );
+        assert_eq!(
+            schema.get_primary_key().get_clustering_key(),
+            read_schema.get_primary_key().get_clustering_key()
+        );
+        assert_eq!(
+            schema.get_schema_type("id").unwrap().to_string(),
+            read_schema.get_schema_type("id").unwrap().to_string()
+        );
+        assert_eq!(
+            schema.get_schema_type("name").unwrap().to_string(),
+            read_schema.get_schema_type("name").unwrap().to_string()
+        );
+    }
+
+    #[test]
+    fn test_schema_parse_function() {
+        let mut columns = HashMap::new();
+        columns.insert("id".to_string(), SchemaType::Int);
+        columns.insert("name".to_string(), SchemaType::Text);
+        let schema = Schema::new(
+            columns,
+            PrimaryKey::new(vec!["id".to_string()], vec!["name".to_string()]),
+        );
+        let parse_id = schema.get_parse_function("id").unwrap();
+        let parse_name = schema.get_parse_function("name").unwrap();
+        assert_eq!(parse_id(&[0, 0, 0, 1]).unwrap(), "1");
+        assert_eq!(parse_name(b"test").unwrap(), "test");
+    }
+
+    #[test]
+    fn test_schema_cmp() {
+        let mut columns = HashMap::new();
+        columns.insert("id".to_string(), SchemaType::Int);
+        columns.insert("name".to_string(), SchemaType::Text);
+        let schema = Schema::new(
+            columns,
+            PrimaryKey::new(vec!["id".to_string()], vec!["name".to_string()]),
+        );
+        assert_eq!(
+            schema.get_schema_type("id").unwrap().cmp("1", "2").unwrap(),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            schema
+                .get_schema_type("name")
+                .unwrap()
+                .cmp("test", "test")
+                .unwrap(),
+            std::cmp::Ordering::Equal
+        );
+    }
+
+    #[test]
+    fn test_schema_check_type() {
+        let mut columns = HashMap::new();
+        columns.insert("id".to_string(), SchemaType::Int);
+        columns.insert("name".to_string(), SchemaType::Text);
+        let schema = Schema::new(
+            columns,
+            PrimaryKey::new(vec!["id".to_string()], vec!["name".to_string()]),
+        );
+        assert!(schema.check_type("id", "1").is_ok());
+        assert!(schema.check_type("name", "test").is_ok());
+        assert!(schema.check_type("id", "test").is_err());
+    }
+
+    #[test]
+    fn test_schema_check_type_timestamp() {
+        let mut columns = HashMap::new();
+        columns.insert("timestamp".to_string(), SchemaType::Timestamp);
+        let schema = Schema::new(
+            columns,
+            PrimaryKey::new(vec!["timestamp".to_string()], vec![]),
+        );
+        assert!(schema
+            .check_type("timestamp", "2021-01-01T00:00:00Z")
+            .is_ok());
+        assert!(schema.check_type("timestamp", "2021-01-01").is_err());
+        assert!(schema.check_type("timestamp", "test").is_err());
+        assert!(schema
+            .check_type("timestamp", "2021-01-01T00:00:00+00:00")
+            .is_ok());
+    }
+
+    #[test]
+    fn test_schema_check_type_boolean() {
+        let mut columns = HashMap::new();
+        columns.insert("boolean".to_string(), SchemaType::Boolean);
+        let schema = Schema::new(
+            columns,
+            PrimaryKey::new(vec!["boolean".to_string()], vec![]),
+        );
+        assert!(schema.check_type("boolean", "true").is_ok());
+        assert!(schema.check_type("boolean", "false").is_ok());
+        assert!(schema.check_type("boolean", "test").is_err());
+    }
+
+    #[test]
+    fn test_schema_check_type_float() {
+        let mut columns = HashMap::new();
+        columns.insert("float".to_string(), SchemaType::Float);
+        let schema = Schema::new(columns, PrimaryKey::new(vec!["float".to_string()], vec![]));
+        assert!(schema.check_type("float", "1.0").is_ok());
+        assert!(schema.check_type("float", "test").is_err());
+    }
+
+    #[test]
+    fn test_schema_check_type_int() {
+        let mut columns = HashMap::new();
+        columns.insert("int".to_string(), SchemaType::Int);
+        let schema = Schema::new(columns, PrimaryKey::new(vec!["int".to_string()], vec![]));
+        assert!(schema.check_type("int", "1").is_ok());
+        assert!(schema.check_type("int", "test").is_err());
+    }
+
+    #[test]
+    fn test_schema_check_type_text() {
+        let mut columns = HashMap::new();
+        columns.insert("text".to_string(), SchemaType::Text);
+        let schema = Schema::new(columns, PrimaryKey::new(vec!["text".to_string()], vec![]));
+        assert!(schema.check_type("text", "test").is_ok());
+    }
+
+    #[test]
+    fn test_schema_check_type_not_found() {
+        let mut columns = HashMap::new();
+        columns.insert("id".to_string(), SchemaType::Int);
+        let schema = Schema::new(columns, PrimaryKey::new(vec!["id".to_string()], vec![]));
+        assert!(schema.check_type("name", "test").is_err());
     }
 }

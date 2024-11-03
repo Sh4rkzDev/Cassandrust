@@ -265,8 +265,14 @@ impl WhereClause {
     ) -> std::io::Result<bool> {
         let owned_value1 = val1.to_string();
         let value1 = row.get(val1).unwrap_or_else(|| &owned_value1);
+
         let owned_value2 = val2.to_string();
         let value2 = row.get(val2).unwrap_or_else(|| &owned_value2);
+
+        if value1 == "NULL" || value2 == "NULL" {
+            return Ok(value1 == value2);
+        }
+
         let schema_type = schema
             .get_schema_type(val1)
             .or_else(|| schema.get_schema_type(val2))
@@ -281,7 +287,7 @@ impl WhereClause {
         }
     }
 
-    pub(crate) fn get_keys(&self, columns: &[String]) -> Vec<String> {
+    pub(crate) fn get_keys(&self) -> Vec<String> {
         match self {
             WhereClause::Comp(comp) => match comp {
                 Comparator::Equal(v1, v2, _)
@@ -289,22 +295,12 @@ impl WhereClause {
                 | Comparator::LessThan(v1, v2, _)
                 | Comparator::GreaterThanOrEqual(v1, v2, _)
                 | Comparator::LessThanOrEqual(v1, v2, _) => {
-                    if columns.contains(&v1) {
-                        if !columns.contains(&v2) {
-                            vec![v1.to_string()]
-                        } else {
-                            Vec::new()
-                        }
-                    } else if columns.contains(&v2) {
-                        vec![v2.to_string()]
-                    } else {
-                        Vec::new()
-                    }
+                    vec![v1.to_string(), v2.to_string()]
                 }
             },
             WhereClause::Tree(left, _, right) => {
-                let mut keys = left.get_keys(columns);
-                keys.extend(right.get_keys(columns));
+                let mut keys = left.get_keys();
+                keys.extend(right.get_keys());
                 keys
             }
         }

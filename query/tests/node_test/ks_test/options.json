@@ -1,0 +1,7 @@
+{
+	"durable_writes": true,
+	"replication": {
+		"class": "SimpleStrategy",
+		"replication_factor": 3
+	}
+}

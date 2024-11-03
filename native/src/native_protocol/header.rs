@@ -30,8 +30,6 @@ pub enum Opcode {
     ResultOP = 0x08,
     Prepare = 0x09,
     Execute = 0x0A,
-    Register = 0x0B,
-    Event = 0x0C,
     AuthChallenge = 0x0E,
     AuthResponse = 0x0F,
     AuthSuccess = 0x10,
@@ -50,8 +48,6 @@ impl Display for Opcode {
             Opcode::ResultOP => "Result",
             Opcode::Prepare => "Prepare",
             Opcode::Execute => "Execute",
-            Opcode::Register => "Register",
-            Opcode::Event => "Event",
             Opcode::AuthChallenge => "AuthChallenge",
             Opcode::AuthResponse => "AuthResponse",
             Opcode::AuthSuccess => "AuthSuccess",
@@ -73,8 +69,6 @@ impl Opcode {
             0x08 => Ok(Opcode::ResultOP),
             0x09 => Ok(Opcode::Prepare),
             0x0A => Ok(Opcode::Execute),
-            0x0B => Ok(Opcode::Register),
-            0x0C => Ok(Opcode::Event),
             0x0E => Ok(Opcode::AuthChallenge),
             0x0F => Ok(Opcode::AuthResponse),
             0x10 => Ok(Opcode::AuthSuccess),
@@ -97,8 +91,6 @@ impl Opcode {
             Opcode::ResultOP => [0x08],
             Opcode::Prepare => [0x09],
             Opcode::Execute => [0x0A],
-            Opcode::Register => [0x0B],
-            Opcode::Event => [0x0C],
             Opcode::AuthChallenge => [0x0E],
             Opcode::AuthResponse => [0x0F],
             Opcode::AuthSuccess => [0x10],
@@ -108,9 +100,9 @@ impl Opcode {
 
 #[derive(Debug)]
 pub struct Header {
-    version: u8,
-    flag: u8,
-    stream: u16,
+    pub version: u8,
+    pub flag: u8,
+    pub stream: u16,
     pub opcode: Opcode,
 }
 
@@ -128,7 +120,6 @@ impl Header {
             Opcode::Query,
             Opcode::Prepare,
             Opcode::Execute,
-            Opcode::Register,
         ];
         let resp = vec![
             Opcode::Error,
@@ -136,7 +127,6 @@ impl Header {
             Opcode::Authenticate,
             Opcode::Supported,
             Opcode::ResultOP,
-            Opcode::Event,
             Opcode::AuthChallenge,
             Opcode::AuthSuccess,
         ];
@@ -178,7 +168,6 @@ impl Header {
             Opcode::Query,
             Opcode::Prepare,
             Opcode::Execute,
-            Opcode::Register,
         ];
         let resp = vec![
             Opcode::Error,
@@ -186,7 +175,6 @@ impl Header {
             Opcode::Authenticate,
             Opcode::Supported,
             Opcode::ResultOP,
-            Opcode::Event,
             Opcode::AuthChallenge,
             Opcode::AuthSuccess,
         ];

@@ -1,0 +1,5 @@
+name text
+price float
+quantity int
+PARTITION_KEY name
+CLUSTERING_KEY price

@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashMap, path::Path};
 
 use db::Context;
 
@@ -38,12 +38,12 @@ impl Query {
         }
     }
 
-    /// Processes the query against a specified table (CSV file).
+    /// Processes the query against a specified table.
     ///
     /// # Arguments
     ///
-    /// * `table` - The name of the table (CSV file) to execute the query against.
-    /// * `ctx` - The context of the database.
+    /// * `table` - The path of the table dir to execute the query against.
+    /// * `ctx` - The context of the node.
     ///
     /// # Returns
     ///
@@ -55,81 +55,48 @@ impl Query {
     /// * `Error` if an error occurs during processing.
     pub fn process(
         &mut self,
-        table: &str,
+        table: &Path,
         ctx: &mut Context,
     ) -> std::io::Result<Option<Vec<Cols>>> {
         let schema = ctx.get_table_schema(table)?;
-        let binding = self.get_keys(&schema.get_columns());
-        let keys = binding
-            .iter()
-            .filter(|k| schema.get_primary_key().get_partition_key().contains(k));
-        let mut rows = Vec::new();
-        for key in keys {
-            match &self.statement {
-                Statement::Select(_, _) => {
-                    ctx.read_table(table, key, &mut |row| -> std::io::Result<()> {
-                        if self.where_clause.as_ref().unwrap().eval(row, &schema)? {
-                            rows.push(row.clone());
-                        }
-                        Ok(())
-                    })?;
-                }
-                Statement::Insert(new_row) => ctx.append_to_table(table, key, new_row.clone())?,
-                Statement::Update(new_rows) => ctx.update_table(table, &key, &|row| {
-                    if self.where_clause.as_ref().unwrap().eval(row, &schema)? {
-                        let mut new_row = row.clone();
-                        for (col, val) in new_rows.iter() {
-                            new_row.insert(col.to_string(), val.to_string());
-                        }
-                        Ok(Some(new_row))
-                    } else {
-                        Ok(Some(row.clone()))
+        match &self.statement {
+            Statement::Select(to_print, order) => {
+                let mut rows = Vec::new();
+                ctx.read_table(table, &mut |row| {
+                    if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
+                        rows.push(row);
                     }
-                })?,
-                Statement::Delete => ctx.update_table(table, &key, &|row| {
-                    if self.where_clause.as_ref().unwrap().eval(row, &schema)? {
+                    Ok(())
+                })?;
+                order_rows(&mut rows, order, to_print)
+            }
+            Statement::Insert(new_row) => ctx.append_to_table(table, new_row.clone()).map(|_| None),
+            Statement::Update(new_rows) => ctx
+                .update_table(table, &mut |mut row| {
+                    if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
+                        for (col, val) in new_rows.iter() {
+                            row.insert(col.to_string(), val.to_string());
+                        }
+                        Ok(Some(row))
+                    } else {
+                        Ok(Some(row))
+                    }
+                })
+                .map(|_| None),
+            Statement::Delete => ctx
+                .update_table(table, &mut |row| {
+                    if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
                         Ok(None)
                     } else {
                         Ok(Some(row.clone()))
                     }
-                })?,
-            }
-        }
-        match &self.statement {
-            Statement::Select(to_print, order) => {
-                if let Some((order_by, order_mode)) = order {
-                    match order_mode {
-                        OrderMode::Asc => rows.sort_by(|a, b| {
-                            let a = a.get(order_by);
-                            let b = b.get(order_by);
-                            a.partial_cmp(&b).unwrap_or(Ordering::Equal)
-                        }),
-                        OrderMode::Desc => rows.sort_by(|a, b| {
-                            let a = a.get(order_by);
-                            let b = b.get(order_by);
-                            b.partial_cmp(&a).unwrap_or(Ordering::Equal)
-                        }),
-                    }
-                }
-                Ok(Some(
-                    rows.iter()
-                        .map(|row| {
-                            to_print
-                                .iter()
-                                .map(|col| {
-                                    row.get(col).cloned().unwrap_or_else(|| "NULL".to_string())
-                                })
-                                .collect::<Vec<String>>()
-                        })
-                        .collect::<Vec<Vec<String>>>(),
-                ))
-            }
-            _ => Ok(None),
+                })
+                .map(|_| None),
         }
     }
 
     /// Returns a vector of columns that act as keys for the query.
-    /// This is used to determine the columns that need to be indexed.
+    /// This is useful to determine the nodes that need to be queried.
     ///
     /// # Returns
     ///
@@ -139,12 +106,43 @@ impl Query {
     /// * `DELETE`: The columns that appear in the `WHERE` clause.
     ///
     /// In all other cases, it returns `None`.
-    pub fn get_keys(&self, columns: &[String]) -> Vec<String> {
+    pub fn get_keys(&self) -> Vec<String> {
         match &self.statement {
-            Statement::Select(_, _) => self.where_clause.as_ref().unwrap().get_keys(columns),
+            Statement::Select(_, _) => self.where_clause.as_ref().unwrap().get_keys(),
             Statement::Insert(row) => row.keys().cloned().collect(),
-            Statement::Update(_) => self.where_clause.as_ref().unwrap().get_keys(columns),
-            Statement::Delete => self.where_clause.as_ref().unwrap().get_keys(columns),
+            Statement::Update(_) => self.where_clause.as_ref().unwrap().get_keys(),
+            Statement::Delete => self.where_clause.as_ref().unwrap().get_keys(),
         }
     }
+}
+
+fn order_rows(
+    rows: &mut Vec<HashMap<String, String>>,
+    order: &Option<(String, OrderMode)>,
+    to_print: &[String],
+) -> std::io::Result<Option<Vec<Cols>>> {
+    if let Some((order_by, order_mode)) = order {
+        match order_mode {
+            OrderMode::Asc => rows.sort_by(|a, b| {
+                let a = a.get(order_by);
+                let b = b.get(order_by);
+                a.partial_cmp(&b).unwrap_or(Ordering::Equal)
+            }),
+            OrderMode::Desc => rows.sort_by(|a, b| {
+                let a = a.get(order_by);
+                let b = b.get(order_by);
+                b.partial_cmp(&a).unwrap_or(Ordering::Equal)
+            }),
+        }
+    }
+    Ok(Some(
+        rows.iter()
+            .map(|row| {
+                to_print
+                    .iter()
+                    .map(|col| row.get(col).cloned().unwrap_or_else(|| "NULL".to_string()))
+                    .collect::<Vec<String>>()
+            })
+            .collect::<Vec<Vec<String>>>(),
+    ))
 }

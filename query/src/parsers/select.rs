@@ -21,7 +21,7 @@ use crate::{
 /// # Returns
 ///
 /// * `std::io::Result<(Query, String)>`: A tuple containing the parsed `Query`
-///   and the path to the table
+///   and the table name.
 ///
 /// # Errors
 ///
@@ -30,8 +30,8 @@ pub(crate) fn process_select(parts: &[String]) -> std::io::Result<(Query, String
     let Some(from) = parts.iter().position(|s| s == "FROM") else {
         return Err(io_error!("No FROM keyword"));
     };
-    if from + 1 >= parts.len() {
-        return Err(io_error!("No table provided"));
+    if from + 5 >= parts.len() || parts[from + 2] != "WHERE" {
+        return Err(io_error!("Invalid SELECT query"));
     }
     if parts[0] == "FROM"
         || parts[0] == "("

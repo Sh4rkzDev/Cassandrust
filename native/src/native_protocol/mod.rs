@@ -1,7 +1,7 @@
-pub mod header;
-pub mod masks;
+mod header;
+mod masks;
 pub mod models;
 pub mod native;
-pub mod parsers;
+mod parsers;
 pub mod requests;
 pub mod responses;
