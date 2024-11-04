@@ -12,6 +12,7 @@ enum QueryFlagsMask {
     WithNamesForValues = 0x40,
 }
 
+#[derive(Debug)]
 pub struct QueryMsg {
     pub query_str: String,
     pub table: String,
