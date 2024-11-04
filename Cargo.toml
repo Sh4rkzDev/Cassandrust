@@ -2,5 +2,5 @@
 
 members = [
     "native", "db", "shared", "query"
-]
+, "gossip", "server"]
 resolver = "2"

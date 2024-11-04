@@ -17,7 +17,7 @@ use crate::native_protocol::parsers::string_map::{read_string_map, write_string_
 /// - COMPRESSION: the compression algorithm to use. The only valid value is "lz4" or "snappy"
 /// - NO_COMPACT: whether or not connection has to be established in compatibility mode
 /// - THROW_ON_OVERLOAD: whether or not the server should throw an error when overloaded
-pub fn read_startup<R: Read>(
+pub(crate) fn read_startup<R: Read>(
     reader: &mut R,
     length: u32,
 ) -> std::io::Result<HashMap<String, String>> {
@@ -54,11 +54,10 @@ pub fn read_startup<R: Read>(
 ///
 /// # Returns
 /// The number of bytes written to the writer.
-pub fn write_startup<W: Write>(
+pub(crate) fn write_startup<W: Write>(
     writer: &mut W,
     map: &HashMap<String, String>,
 ) -> std::io::Result<u32> {
-    let mut buffer = Vec::new();
     if let Some(val) = map.get("CQL_VERSION") {
         if val != "3.0.0" {
             return Err(Error::new(
@@ -82,10 +81,7 @@ pub fn write_startup<W: Write>(
             })
             .map(|(k, v)| (k.clone(), v.clone())),
     );
-    let bytes_written = write_string_map(&mut buffer, &map)?;
-    writer.write_all(&(buffer.len() as u32).to_be_bytes())?;
-    writer.write_all(&buffer)?;
-    Ok(bytes_written + 4)
+    write_string_map(writer, &map)
 }
 
 #[cfg(test)]
@@ -181,11 +177,10 @@ mod tests {
         map.insert("CQL_VERSION".to_string(), "3.0.0".to_string());
         let mut output = Vec::new();
         let written = write_startup(&mut output, &map).unwrap();
-        assert_eq!(written, 26);
+        assert_eq!(written, 22);
         assert_eq!(
             output,
             vec![
-                0x00, 0x00, 0x00, 0x16, // length = 22
                 0x00, 0x01, // n = 1
                 0x00, 0x0B, b'C', b'Q', b'L', b'_', b'V', b'E', b'R', b'S', b'I', b'O',
                 b'N', // key = "CQL_VERSION"
@@ -212,8 +207,8 @@ mod tests {
         map.insert("THROW_ON_OVERLOAD".to_string(), "false".to_string());
         let mut output = Vec::new();
         let written = write_startup(&mut output, &map).unwrap();
-        assert_eq!(written, 88);
-        let mut input = Cursor::new(&output[4..]);
+        assert_eq!(written, 84);
+        let mut input = Cursor::new(&output);
         let result = read_startup(&mut input, 84).unwrap();
         assert_eq!(result, map);
     }

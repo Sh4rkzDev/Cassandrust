@@ -48,8 +48,8 @@ pub struct ColumnSpec {
 }
 
 impl ColumnSpec {
-    fn new(name: String, data_type: DataTypeFlags) -> Result<Self, String> {
-        Ok(ColumnSpec { name, data_type })
+    pub fn new(name: String, data_type: DataTypeFlags) -> Self {
+        ColumnSpec { name, data_type }
     }
 
     fn read<R: Read>(reader: &mut R) -> std::io::Result<(Self, u32)> {
@@ -216,6 +216,36 @@ impl RowMetadata {
 type RowBytes = Vec<Bytes>;
 type Row = Vec<String>;
 
+fn strings_to_bytes(input: Vec<String>) -> Vec<Vec<u8>> {
+    input
+        .into_iter()
+        .map(|s| {
+            // Intentar convertir a i64 (entero)
+            if let Ok(int_val) = s.parse::<i64>() {
+                return int_val.to_be_bytes().to_vec();
+            }
+            // Intentar convertir a f64 (float)
+            if let Ok(float_val) = s.parse::<f64>() {
+                return float_val.to_be_bytes().to_vec();
+            }
+            // Convertir a bytes como texto UTF-8
+            s.into_bytes()
+        })
+        .collect()
+}
+
+fn vec_row_to_vec_row_bytes(input: Vec<Row>) -> Vec<RowBytes> {
+    input
+        .into_iter()
+        .map(|row| {
+            strings_to_bytes(row)
+                .into_iter()
+                .map(|bytes_data| Bytes { bytes_data })
+                .collect()
+        })
+        .collect()
+}
+
 #[derive(Debug)]
 pub struct Rows {
     pub metadata: RowMetadata,
@@ -224,11 +254,11 @@ pub struct Rows {
 }
 
 impl Rows {
-    pub fn new(metadata: RowMetadata, rows_count: i32, rows_content: Vec<RowBytes>) -> Self {
+    pub fn new(metadata: RowMetadata, rows_count: i32, rows_content: Vec<Row>) -> Self {
         Rows {
             metadata,
             rows_count,
-            rows_content,
+            rows_content: vec_row_to_vec_row_bytes(rows_content),
         }
     }
 
@@ -360,7 +390,7 @@ impl ResultOP {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
+    use std::{io::Cursor, vec};
 
     use super::*;
 
@@ -376,7 +406,7 @@ mod tests {
     #[test]
     fn test_write_column_spec() {
         let mut buffer: Vec<u8> = Vec::new();
-        let column_spec = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar).unwrap();
+        let column_spec = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar);
         assert_eq!(column_spec.write(&mut buffer).unwrap(), 8);
         let expected = vec![0x00, 0x04, b'n', b'a', b'm', b'e', 0x0, 0x000D];
         assert_eq!(buffer, expected);
@@ -384,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_read_and_write_column_spec() {
-        let col_spec = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar).unwrap();
+        let col_spec = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar);
 
         let mut buffer: Vec<u8> = Vec::new();
         let written = col_spec.write(&mut buffer).unwrap();
@@ -430,9 +460,9 @@ mod tests {
     fn test_write_row_metadata() {
         let mut column_specs: Vec<ColumnSpec> = Vec::new();
 
-        let column_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar).unwrap();
+        let column_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar);
 
-        let column_spec_2 = ColumnSpec::new("algo".to_string(), DataTypeFlags::Varchar).unwrap();
+        let column_spec_2 = ColumnSpec::new("algo".to_string(), DataTypeFlags::Varchar);
 
         column_specs.push(column_spec_1);
         column_specs.push(column_spec_2);
@@ -461,8 +491,8 @@ mod tests {
 
     #[test]
     fn test_read_and_write_row_metadata() {
-        let column_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar).unwrap();
-        let column_spec_2 = ColumnSpec::new("algo".to_string(), DataTypeFlags::Varchar).unwrap();
+        let column_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar);
+        let column_spec_2 = ColumnSpec::new("algo".to_string(), DataTypeFlags::Varchar);
         let column_specs: Vec<ColumnSpec> = vec![column_spec_1, column_spec_2];
 
         let row_metadata = RowMetadata::new(
@@ -554,11 +584,9 @@ mod tests {
 
     #[test]
     fn test_write_rows() {
-        let mut column_specs: Vec<ColumnSpec> = Vec::new();
-        let column_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar).unwrap();
-        let column_spec_2 = ColumnSpec::new("algo".to_string(), DataTypeFlags::Varchar).unwrap();
-        column_specs.push(column_spec_1);
-        column_specs.push(column_spec_2);
+        let column_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar);
+        let column_spec_2 = ColumnSpec::new("algo".to_string(), DataTypeFlags::Varchar);
+        let column_specs: Vec<ColumnSpec> = vec![column_spec_1, column_spec_2];
 
         let row_metadata = RowMetadata::new(
             0x01,
@@ -568,15 +596,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut rows_content: Vec<RowBytes> = Vec::new();
-        let mut row = Vec::new();
-        row.push(Bytes {
-            bytes_data: vec![b'h', b'e', b'l', b'l', b'o'],
-        });
-        row.push(Bytes {
-            bytes_data: vec![b'w', b'o', b'r', b'l', b'd'],
-        });
-        rows_content.push(row);
+        let rows_content = vec![vec!["hello".to_string(), "world".to_string()]];
 
         let rows = Rows::new(row_metadata, 1, rows_content);
         let mut buffer: Vec<u8> = Vec::new();
@@ -602,8 +622,8 @@ mod tests {
 
     #[test]
     fn test_read_and_write_rows() {
-        let col_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar).unwrap();
-        let col_spec_2 = ColumnSpec::new("algo".to_owned(), DataTypeFlags::Varchar).unwrap();
+        let col_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar);
+        let col_spec_2 = ColumnSpec::new("algo".to_owned(), DataTypeFlags::Varchar);
         let col_specs = vec![col_spec_1, col_spec_2];
 
         let row_metadata = RowMetadata::new(
@@ -613,15 +633,7 @@ mod tests {
             Some(col_specs),
         );
 
-        let mut rows_content: Vec<RowBytes> = Vec::new();
-        let mut row = Vec::new();
-        row.push(Bytes {
-            bytes_data: vec![b'h', b'e', b'l', b'l', b'o'],
-        });
-        row.push(Bytes {
-            bytes_data: vec![b'w', b'o', b'r', b'l', b'd'],
-        });
-        rows_content.push(row.clone());
+        let rows_content = vec![vec!["hello".to_string(), "world".to_string()]];
 
         let rows = Rows::new(row_metadata.unwrap(), 1, rows_content);
 
@@ -653,9 +665,9 @@ mod tests {
 
     #[test]
     fn test_read_and_write_result() {
-        let col_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar).unwrap();
-        let col_spec_2 = ColumnSpec::new("age".to_owned(), DataTypeFlags::Int).unwrap();
-        let col_spec_3 = ColumnSpec::new("email".to_owned(), DataTypeFlags::Varchar).unwrap();
+        let col_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar);
+        let col_spec_2 = ColumnSpec::new("age".to_owned(), DataTypeFlags::Int);
+        let col_spec_3 = ColumnSpec::new("email".to_owned(), DataTypeFlags::Varchar);
         let col_specs = vec![col_spec_1, col_spec_2, col_spec_3];
 
         let row_metadata = RowMetadata::new(
@@ -665,40 +677,20 @@ mod tests {
             Some(col_specs),
         );
 
-        let mut rows_content: Vec<RowBytes> = Vec::new();
-        let mut row = Vec::new();
-        row.push(Bytes {
-            bytes_data: vec![b'h', b'e', b'l', b'l', b'o'],
-        });
-        row.push(Bytes {
-            bytes_data: vec![0x00, 0x00, 0x00, 0x19],
-        });
-        row.push(Bytes {
-            bytes_data: vec![b'e', b'm', b'a', b'i', b'l'],
-        });
-        rows_content.push(row.clone());
-
-        row.clear();
-        row.push(Bytes {
-            bytes_data: vec![b'w', b'o', b'r', b'l', b'd'],
-        });
-        row.push(Bytes {
-            bytes_data: vec![0x00, 0x00, 0x00, 0x1E],
-        });
-        row.push(Bytes {
-            bytes_data: vec![b'e', b'm', b'a', b'i', b'l'],
-        });
-        rows_content.push(row);
+        let rows_content = vec![
+            vec!["hello".to_string(), "25".to_string(), "email".to_string()],
+            vec!["world".to_string(), "30".to_string(), "email".to_string()],
+        ];
 
         let rows = Rows::new(row_metadata.unwrap(), 2, rows_content);
         let result_op = ResultOP::new(0x0002, Some(rows)).unwrap();
 
         let mut buffer: Vec<u8> = Vec::new();
         let written = result_op.write(&mut buffer).unwrap();
-        assert_eq!(written, 113);
+        assert_eq!(written, 121);
 
         let mut buffer = Cursor::new(buffer);
-        let result_op = ResultOP::read(&mut buffer, 113).unwrap();
+        let result_op = ResultOP::read(&mut buffer, 121).unwrap();
 
         match result_op {
             ResultOP::Rows(rows) => {
@@ -716,7 +708,7 @@ mod tests {
                 );
                 assert_eq!(
                     rows.rows_content[0][1].bytes_data,
-                    vec![0x00, 0x00, 0x00, 0x19]
+                    vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x19]
                 );
                 assert_eq!(
                     rows.rows_content[0][2].bytes_data,
@@ -728,7 +720,7 @@ mod tests {
                 );
                 assert_eq!(
                     rows.rows_content[1][1].bytes_data,
-                    vec![0x00, 0x00, 0x00, 0x1E]
+                    vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1E]
                 );
                 assert_eq!(
                     rows.rows_content[1][2].bytes_data,

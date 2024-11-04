@@ -114,6 +114,13 @@ impl Query {
             Statement::Delete => self.where_clause.as_ref().unwrap().get_keys(),
         }
     }
+
+    pub fn get_cols(&self) -> Vec<String> {
+        match &self.statement {
+            Statement::Select(cols, _) => cols.clone(),
+            _ => Vec::new(),
+        }
+    }
 }
 
 fn order_rows(

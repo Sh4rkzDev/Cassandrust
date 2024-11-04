@@ -88,11 +88,11 @@ impl Error {
         }
     }
 
-    pub fn add_extra(&mut self, key: String, value: String) {
+    pub(crate) fn add_extra(&mut self, key: String, value: String) {
         self.extras.insert(key, value);
     }
 
-    pub fn read<R: Read>(reader: &mut R) -> std::io::Result<(Error, u32)> {
+    pub(crate) fn read<R: Read>(reader: &mut R) -> std::io::Result<(Error, u32)> {
         let mut code_buffer = [0u8; 4];
         reader.read_exact(&mut code_buffer)?;
         let code = i32::from_be_bytes(code_buffer);
@@ -176,7 +176,7 @@ impl Error {
         ))
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<u32> {
+    pub(crate) fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<u32> {
         writer.write_all(&(self.code as i32).to_be_bytes())?;
         let mut bytes_written = 4;
 

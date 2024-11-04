@@ -144,7 +144,7 @@ impl Header {
         })
     }
 
-    pub fn read_header<R: Read>(reader: &mut R) -> std::io::Result<Header> {
+    pub(crate) fn read_header<R: Read>(reader: &mut R) -> std::io::Result<Header> {
         let mut buffer = [0u8; 5];
         reader.read_exact(&mut buffer)?;
         let version = u8::from_be(buffer[0]);
@@ -199,7 +199,7 @@ impl Header {
         })
     }
 
-    pub fn write_header<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+    pub(crate) fn write_header<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let version_be = self.version.to_be_bytes();
         writer.write_all(&version_be)?;
 

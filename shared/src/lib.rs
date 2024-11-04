@@ -21,6 +21,15 @@ macro_rules! not_found_error {
     };
 }
 
+pub fn get_workspace() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf()
+}
+
+use std::path::PathBuf;
+
 pub use thread_context::connection::get_keyspace;
 pub use thread_context::connection::get_keyspace_name;
 pub use thread_context::connection::is_startup;

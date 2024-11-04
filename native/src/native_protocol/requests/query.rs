@@ -19,7 +19,7 @@ use crate::native_protocol::{
 /// - PAGE_SIZE: <page_size> (4 bytes)
 /// - PAGING_STATE: <paging_state> (<n><byte_1>...<byte_n>)
 /// - WITH_NAMES_FOR_VALUES: VALUES but with names before each value
-pub fn read_query<R: Read>(reader: &mut R, length: u32) -> std::io::Result<QueryMsg> {
+pub(crate) fn read_query<R: Read>(reader: &mut R, length: u32) -> std::io::Result<QueryMsg> {
     let mut buffer = vec![0; length as usize];
     reader.read_exact(&mut buffer)?;
     let mut cursor = Cursor::new(buffer);
@@ -43,7 +43,7 @@ pub fn read_query<R: Read>(reader: &mut R, length: u32) -> std::io::Result<Query
     Ok(QueryMsg::new(query_string, consistency, flags_buffer[0])?)
 }
 
-pub fn write_query<W: Write>(
+pub(crate) fn write_query<W: Write>(
     writer: &mut W,
     query_str: String,
     consistency_level: ConsistencyLevel,

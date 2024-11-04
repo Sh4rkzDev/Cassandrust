@@ -6,6 +6,7 @@ use crate::native_protocol::header::Opcode;
 
 use super::{error::Error, result_op::ResultOP};
 
+#[derive(Debug)]
 pub enum Response {
     Ready,
     Error(Error),
@@ -13,7 +14,11 @@ pub enum Response {
 }
 
 impl Response {
-    pub fn read<R: Read>(reader: &mut R, opcode: &Opcode, length: u32) -> std::io::Result<Self> {
+    pub(crate) fn read<R: Read>(
+        reader: &mut R,
+        opcode: &Opcode,
+        length: u32,
+    ) -> std::io::Result<Self> {
         match opcode {
             Opcode::Error => {
                 let (error, read) = Error::read(reader)?;
@@ -31,7 +36,7 @@ impl Response {
         }
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<u32> {
+    pub(crate) fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<u32> {
         match self {
             Response::Ready => Ok(0),
             Response::Error(error) => error.write(writer),
