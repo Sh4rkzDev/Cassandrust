@@ -1,4 +1,4 @@
-mod header;
+pub(crate) mod header;
 mod masks;
 pub mod models;
 pub mod native;

@@ -11,3 +11,7 @@ db = { path = "../db" }
 [lib]
 name = "native"
 path = "src/lib.rs"
+
+[features]
+client = []
+server = []

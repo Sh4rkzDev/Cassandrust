@@ -73,9 +73,11 @@ impl Tables {
 
         let mut schema_file = File::create(table.join("table.schema"))?;
         schema.write(&mut schema_file)?;
+        schema_file.flush()?;
 
         let mut table_file = File::create(table.join("table.csv"))?;
         table_file.write_fmt(format_args!("{}\n", schema.get_columns().join(",")))?;
+        table_file.flush()?;
 
         self.tables
             .write()
@@ -169,7 +171,8 @@ impl Tables {
 
         let _table_write_guard = read_guard.write().unwrap();
         let mut file = OpenOptions::new().append(true).open(table_file)?;
-        writeln!(file, "{}", row.join(","))
+        writeln!(file, "{}", row.join(","))?;
+        file.flush()
     }
 
     pub(crate) fn update_table(
@@ -216,6 +219,7 @@ impl Tables {
             }
             writer.write_record(&row)?;
         }
+        writer.flush()?;
         drop(table_read_guard);
         let _table_write_guard = read_guard.write().unwrap();
         rename(output_file, table_file)
@@ -234,6 +238,7 @@ fn ensure_newline_at_end(path: &Path) -> std::io::Result<()> {
     if last_byte[0] != b'\n' {
         file.seek(SeekFrom::End(0))?;
         file.write_all(b"\n")?;
+        file.flush()?;
     }
 
     Ok(())

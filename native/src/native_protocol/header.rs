@@ -3,6 +3,8 @@ use std::{
     io::{Read, Write},
 };
 
+use shared::io_error;
+
 /*
       0         8        16        24        32         40
       +---------+---------+---------+---------+---------+
@@ -18,7 +20,7 @@ use std::{
 */
 
 /// A single byte that describes the possible Opcodes that distinguishes the actual message
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Opcode {
     Error = 0x00,
     Startup = 0x01,
@@ -107,11 +109,14 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn new(version: u8, flag: u8, stream: u16, opcode: Opcode) -> Result<Self, String> {
+    /// Creates a new Header with the specified version, flag, stream, and opcode.
+    ///
+    /// Possible versions are 0x04 for requests and 0x84 for responses.
+    pub fn new(version: u8, flag: u8, stream: u16, opcode: Opcode) -> std::io::Result<Self> {
         if version != 0x04 && version != 0x84 {
-            return Err(format!(
+            return Err(io_error!(format!(
                 "Invalid version: expected 0x04 or 0x84, got {version}"
-            ));
+            )));
         }
         let reqs = vec![
             Opcode::Startup,
@@ -131,10 +136,14 @@ impl Header {
             Opcode::AuthSuccess,
         ];
         if version == 0x04 && !reqs.contains(&opcode) {
-            return Err(format!("Invalid opcode: {opcode} is not a request opcode"));
+            return Err(io_error!(format!(
+                "Invalid opcode: {opcode} is not a request opcode"
+            )));
         }
         if version == 0x84 && !resp.contains(&opcode) {
-            return Err(format!("Invalid opcode: {opcode} is not a response opcode"));
+            return Err(io_error!(format!(
+                "Invalid opcode: {opcode} is not a response opcode"
+            )));
         }
         Ok(Header {
             version,

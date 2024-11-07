@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use shared::not_found_error;
 
-use super::node::{load_nodes, Node};
+use super::node::{load_nodes_config, Node};
 
 pub struct Partitioner {
     pub(crate) ring: Vec<Node>,
@@ -13,7 +11,7 @@ impl Partitioner {
     /// **Must** execute at node startup.
     #[must_use]
     pub fn read_config() -> Self {
-        let nodes = load_nodes().unwrap();
+        let nodes = load_nodes_config().unwrap();
         Self { ring: nodes }
     }
 

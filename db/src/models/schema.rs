@@ -275,8 +275,7 @@ impl Schema {
         writer.write_fmt(format_args!(
             "CLUSTERING_KEY {}\n",
             self.primary_key.get_clustering_key().join(" ")
-        ))?;
-        writer.flush()
+        ))
     }
 }
 

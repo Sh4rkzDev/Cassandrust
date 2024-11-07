@@ -8,4 +8,5 @@ murmur3 = "0.5.2"
 serde = { version = "1.0.214", features = ["derive"] }
 serde_json = "1.0.132"
 shared = { path = "../shared" }
-native = { path = "../native" }
+native = { path = "../native", features = ["server"] }
+clap = { version = "4.5.20", features = ["derive"] }
