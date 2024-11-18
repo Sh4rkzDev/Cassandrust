@@ -33,7 +33,9 @@ pub fn get_keyspace_name() -> std::io::Result<String> {
             .file_name()
             .ok_or(io_error!("Error while trying to read keyspace name"))?
             .to_str()
-            .ok_or(io_error!("Error while trying to read keyspace name"))?
+            .ok_or(io_error!(
+                "Error while trying to convert to str the keyspace name"
+            ))?
             .to_string())
     })
 }

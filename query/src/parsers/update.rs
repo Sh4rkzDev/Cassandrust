@@ -20,7 +20,7 @@ use crate::models::{query::Query, statement::Statement, where_clause::WhereClaus
 ///
 /// * Returns an Error if there are syntax errors in the `UPDATE` query.
 ///
-pub(crate) fn parse_update(tokens: &[String]) -> std::io::Result<(Query, String)> {
+pub(crate) fn process_update(tokens: &[String]) -> std::io::Result<(Query, String)> {
     if tokens.len() < 9 || tokens[1] != "SET" || !tokens.contains(&"WHERE".to_string()) {
         // 9 is the minimum number of tokens for a valid UPDATE query in CQL
         return Err(io_error!(
@@ -64,7 +64,7 @@ pub(crate) fn parse_update(tokens: &[String]) -> std::io::Result<(Query, String)
                         )));
                     }
                     new_val += &(" ".to_string() + stripped);
-                    statement.add_row(col.trim().to_owned(), new_val)?;
+                    statement.add_row(col.trim().to_owned(), new_val.trim().to_string())?;
                     col = String::new();
                     new_val = String::new();
                     equals = false;
@@ -79,6 +79,6 @@ pub(crate) fn parse_update(tokens: &[String]) -> std::io::Result<(Query, String)
     if where_clause.is_none() {
         return Err(io_error!("WHERE clause is missing"));
     }
-    statement.add_row(col.trim().to_owned(), new_val)?;
+    statement.add_row(col.trim().to_owned(), new_val.trim().to_string())?;
     Ok((Query::new(statement, where_clause), tokens[0].to_owned()))
 }

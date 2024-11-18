@@ -1,3 +1,4 @@
+use db::SchemaType;
 use shared::io_error;
 
 use crate::native_protocol::parsers::{
@@ -14,7 +15,6 @@ pub enum DataTypeFlags {
     Int = 0x0009,
     Varchar = 0x000D,
     Timestamp = 0x000B,
-    Inet = 0x0010,
 }
 
 impl DataTypeFlags {
@@ -25,7 +25,6 @@ impl DataTypeFlags {
             0x0009 => Ok(DataTypeFlags::Int),
             0x000B => Ok(DataTypeFlags::Timestamp),
             0x000D => Ok(DataTypeFlags::Varchar),
-            0x0010 => Ok(DataTypeFlags::Inet),
             _ => Err(io_error!(format!("Invalid data flag: {flag}"))),
         }
     }
@@ -36,7 +35,40 @@ impl DataTypeFlags {
             DataTypeFlags::Int => [0x00, 0x09],
             DataTypeFlags::Timestamp => [0x00, 0x0B],
             DataTypeFlags::Varchar => [0x00, 0x0D],
-            DataTypeFlags::Inet => [0x00, 0x10],
+        }
+    }
+
+    fn get_parse_fn(&self) -> fn(&[u8]) -> std::io::Result<String> {
+        match self {
+            DataTypeFlags::Boolean => |buf: &[u8]| -> std::io::Result<String> {
+                match buf[0] {
+                    0x00 => Ok("false".to_string()),
+                    _ => Ok("true".to_string()),
+                }
+            },
+            DataTypeFlags::Float => |buf: &[u8]| -> std::io::Result<String> {
+                let array: [u8; 4] = buf.try_into().map_err(|_| io_error!("Invalid length"))?;
+                Ok(f32::from_be_bytes(array).to_string())
+            },
+            DataTypeFlags::Int => |buf: &[u8]| -> std::io::Result<String> {
+                let array: [u8; 4] = buf.try_into().map_err(|_| io_error!("Invalid length"))?;
+                Ok(i32::from_be_bytes(array).to_string())
+            },
+            DataTypeFlags::Timestamp | DataTypeFlags::Varchar => {
+                |buf: &[u8]| -> std::io::Result<String> {
+                    String::from_utf8(buf.to_vec()).map_err(|_| io_error!("Invalid UTF-8"))
+                }
+            }
+        }
+    }
+
+    pub fn from_schema_type(schema_type: &SchemaType) -> DataTypeFlags {
+        match *schema_type {
+            SchemaType::Int => DataTypeFlags::Int,
+            SchemaType::Text => DataTypeFlags::Varchar,
+            SchemaType::Float => DataTypeFlags::Float,
+            SchemaType::Boolean => DataTypeFlags::Boolean,
+            SchemaType::Timestamp => DataTypeFlags::Timestamp,
         }
     }
 }
@@ -74,7 +106,7 @@ impl ColumnSpec {
     }
 }
 
-enum RowsMetadaFlagsMask {
+pub enum RowsMetadaFlagsMask {
     GlobalTablesSpec = 0x0001,
     HasMorePages = 0x0002,
     NoMetadata = 0x0004,
@@ -220,15 +252,12 @@ fn strings_to_bytes(input: Vec<String>) -> Vec<Vec<u8>> {
     input
         .into_iter()
         .map(|s| {
-            // Intentar convertir a i64 (entero)
-            if let Ok(int_val) = s.parse::<i64>() {
+            if let Ok(int_val) = s.parse::<i32>() {
                 return int_val.to_be_bytes().to_vec();
             }
-            // Intentar convertir a f64 (float)
-            if let Ok(float_val) = s.parse::<f64>() {
+            if let Ok(float_val) = s.parse::<f32>() {
                 return float_val.to_be_bytes().to_vec();
             }
-            // Convertir a bytes como texto UTF-8
             s.into_bytes()
         })
         .collect()
@@ -312,8 +341,6 @@ pub enum ResultOP {
     Void, // Void = 0x0001
     Rows(Rows), // Rows = 0x0002
           // SetKeyspace = 0x0003
-          // Prepared = 0x0004
-          // SchemaChange = 0x0005
 }
 
 impl ResultOP {
@@ -384,6 +411,27 @@ impl ResultOP {
         match self {
             ResultOP::Void => Ok(4),
             ResultOP::Rows(rows) => Ok(rows.write(writer)? + 4),
+        }
+    }
+
+    pub fn rows(&self) -> std::io::Result<Option<Vec<Row>>> {
+        match self {
+            ResultOP::Rows(rows) => {
+                let mut res = Vec::new();
+                let rows_types = rows.metadata.column_specs.as_ref().unwrap();
+                for row in rows.rows_content.iter() {
+                    let mut res_row = Vec::new();
+                    for (idx, bytes_type) in row.iter().enumerate() {
+                        let parse_fn = rows_types[idx].data_type.get_parse_fn();
+                        let parsed = parse_fn(&bytes_type.bytes_data)?;
+                        res_row.push(parsed);
+                    }
+
+                    res.push(res_row);
+                }
+                Ok(Some(res))
+            }
+            _ => Ok(None),
         }
     }
 }
@@ -687,10 +735,10 @@ mod tests {
 
         let mut buffer: Vec<u8> = Vec::new();
         let written = result_op.write(&mut buffer).unwrap();
-        assert_eq!(written, 121);
+        assert_eq!(written, 113);
 
         let mut buffer = Cursor::new(buffer);
-        let result_op = ResultOP::read(&mut buffer, 121).unwrap();
+        let result_op = ResultOP::read(&mut buffer, 113).unwrap();
 
         match result_op {
             ResultOP::Rows(rows) => {
@@ -708,7 +756,7 @@ mod tests {
                 );
                 assert_eq!(
                     rows.rows_content[0][1].bytes_data,
-                    vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x19]
+                    vec![0x00, 0x00, 0x00, 0x19]
                 );
                 assert_eq!(
                     rows.rows_content[0][2].bytes_data,
@@ -720,7 +768,7 @@ mod tests {
                 );
                 assert_eq!(
                     rows.rows_content[1][1].bytes_data,
-                    vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1E]
+                    vec![0x00, 0x00, 0x00, 0x1E]
                 );
                 assert_eq!(
                     rows.rows_content[1][2].bytes_data,
@@ -749,5 +797,44 @@ mod tests {
         assert_eq!(written, 4);
         let expected = vec![0x0, 0x0, 0x0, 0x1];
         assert_eq!(expected, buffer);
+    }
+
+    #[test]
+    fn test_read_and_write_rows_vec() {
+        let col_spec_1 = ColumnSpec::new("name".to_string(), DataTypeFlags::Varchar);
+        let col_spec_2 = ColumnSpec::new("age".to_owned(), DataTypeFlags::Int);
+        let col_spec_3 = ColumnSpec::new("email".to_owned(), DataTypeFlags::Varchar);
+        let col_specs = vec![col_spec_1, col_spec_2, col_spec_3];
+
+        let row_metadata = RowMetadata::new(
+            0x01,
+            3,
+            Some(("ks_test".to_string(), "table_test".to_string())),
+            Some(col_specs),
+        );
+
+        let rows_content = vec![
+            vec!["hello".to_string(), "25".to_string(), "email".to_string()],
+            vec!["world".to_string(), "30".to_string(), "email".to_string()],
+        ];
+
+        let rows = Rows::new(row_metadata.unwrap(), 2, rows_content);
+        let result_op = ResultOP::new(0x0002, Some(rows)).unwrap();
+
+        let mut buffer: Vec<u8> = Vec::new();
+        let written = result_op.write(&mut buffer).unwrap();
+        assert_eq!(written, 113);
+
+        let mut buffer = Cursor::new(buffer);
+        let result_op = ResultOP::read(&mut buffer, 113).unwrap();
+
+        let rows = result_op.rows().unwrap().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0][0], "hello");
+        assert_eq!(rows[0][1], "25");
+        assert_eq!(rows[0][2], "email");
+        assert_eq!(rows[1][0], "world");
+        assert_eq!(rows[1][1], "30");
+        assert_eq!(rows[1][2], "email");
     }
 }

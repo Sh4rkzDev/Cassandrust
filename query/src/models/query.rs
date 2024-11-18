@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap, path::Path};
 
 use db::Context;
+use serde::{Deserialize, Serialize};
 
 use super::{
     statement::{Cols, OrderMode, Statement},
@@ -14,7 +15,7 @@ pub const KEYWORDS: [&str; 15] = [
 ];
 
 /// Represents a parsed SQL query, containing a statement and an optional WHERE clause.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Query {
     statement: Statement,
     where_clause: Option<WhereClause>,
@@ -58,7 +59,14 @@ impl Query {
         table: &Path,
         ctx: &mut Context,
     ) -> std::io::Result<Option<Vec<Cols>>> {
-        let schema = ctx.get_table_schema(table)?;
+        let ks = table
+            .parent()
+            .unwrap()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let schema = ctx.get_table_schema(ks, table.file_name().unwrap().to_str().unwrap())?;
         match &self.statement {
             Statement::Select(to_print, order) => {
                 let mut rows = Vec::new();

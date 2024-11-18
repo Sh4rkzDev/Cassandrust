@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
 use shared::io_error;
 
 /// Represents the columns selected in a SQL query.
@@ -8,14 +9,14 @@ pub(crate) type Cols = Vec<String>;
 type OrderBy = Option<(String, OrderMode)>;
 
 /// Specifies the order mode for sorting results.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum OrderMode {
     Asc,
     Desc,
 }
 
 /// Represents a SQL statement that can be executed against a CSV table.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum Statement {
     /// Select (`cols_to_be_printed`, `order_by`)
     Select(Cols, OrderBy),
@@ -24,6 +25,8 @@ pub(crate) enum Statement {
     /// Update (new row)
     Update(HashMap<String, String>),
     Delete,
+    //  ///Create table (columns<name, type>). Partition key is under the key "PARTITION_KEY", same for clustering key.
+    // CreateTable(HashMap<String, String>),
 }
 
 impl Statement {

@@ -1,0 +1,5 @@
+code text
+latitude float
+longitude float
+PARTITION_KEY code
+CLUSTERING_KEY latitude longitude

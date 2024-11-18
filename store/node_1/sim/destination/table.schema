@@ -1,0 +1,7 @@
+id int
+origin text
+destination text
+date timestamp
+distance int
+PARTITION_KEY destination
+CLUSTERING_KEY date

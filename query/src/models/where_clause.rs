@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use db::Schema;
+use serde::{Deserialize, Serialize};
 use shared::io_error;
 
 use crate::utils::tokens::tokenize;
 
 /// Represents logical operators that can be used in a `WHERE` clause.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Operator {
     And,
     Or,
@@ -18,7 +19,7 @@ pub enum Operator {
 type Not = bool;
 
 /// Represents different types of comparison operations in a `WHERE` clause.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum Comparator {
     Equal(String, String, Not),
     GreaterThan(String, String, Not),
@@ -29,7 +30,7 @@ pub(crate) enum Comparator {
 
 /// Represents a `WHERE` clause that can be either a comparison or a combination
 /// of multiple comparisons using logical operators.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum WhereClause {
     Comp(Comparator),
     Tree(Box<WhereClause>, Operator, Box<WhereClause>),

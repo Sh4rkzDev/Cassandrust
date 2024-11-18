@@ -3,17 +3,17 @@ use std::{fs::File, io::BufReader};
 use serde::{Deserialize, Serialize};
 use shared::get_workspace;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TokenRange {
     pub start: i64,
     pub end: i64,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Node {
     pub id: String,
     pub ip_address: String,
-    pub port: i32,
+    pub port: u16,
     pub token_range: TokenRange,
     // pub active: bool,
 }

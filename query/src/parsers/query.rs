@@ -3,7 +3,7 @@ use shared::io_error;
 use crate::{models::query::Query, utils::tokens::separate_parenthesis};
 
 use super::{
-    delete::process_delete, insert::process_insert, select::process_select, update::parse_update,
+    delete::process_delete, insert::process_insert, select::process_select, update::process_update,
 };
 
 /// Processes a raw SQL query string and determines the query type.
@@ -41,7 +41,7 @@ pub fn process_query(query: &str) -> std::io::Result<(Query, String)> {
     match query_vec[0].as_str() {
         "SELECT" => process_select(&rest_of_query),
         "INSERT" => process_insert(&rest_of_query),
-        "UPDATE" => parse_update(&rest_of_query),
+        "UPDATE" => process_update(&rest_of_query),
         "DELETE" => process_delete(&rest_of_query),
         query => Err(io_error!(format!(
             "Invalid query: cannot recognize query '{query}'",

@@ -43,4 +43,11 @@ impl Response {
             Response::ResultOp(result_op) => result_op.write(writer),
         }
     }
+
+    pub(crate) fn get_rows(&self) -> Option<Vec<Vec<String>>> {
+        match self {
+            Response::ResultOp(result_op) => result_op.rows().unwrap(),
+            _ => None,
+        }
+    }
 }

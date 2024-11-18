@@ -1,5 +1,6 @@
-use std::io::Read;
+use std::io::{Read, Write};
 
+use query::Query;
 use shared::io_error;
 
 use super::{
@@ -12,6 +13,29 @@ use super::{
 pub enum Body {
     Request(Request),
     Response(Response),
+}
+
+impl Body {
+    pub fn get_keys(&self) -> Option<Vec<String>> {
+        match self {
+            Body::Request(request) => request.get_keys(),
+            Body::Response(_) => None,
+        }
+    }
+
+    pub fn get_query(&self) -> Option<(Query, String)> {
+        match self {
+            Body::Request(request) => request.get_query(),
+            Body::Response(_) => None,
+        }
+    }
+
+    pub fn get_rows(&self) -> Option<Vec<Vec<String>>> {
+        match self {
+            Body::Request(_) => None,
+            Body::Response(response) => response.get_rows(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -46,7 +70,7 @@ impl Frame {
         Ok(Frame { header, body })
     }
 
-    pub fn write<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         self.header.write_header(writer)?;
         let mut buffer = Vec::new();
         let length = match &self.body {
@@ -55,7 +79,7 @@ impl Frame {
         };
         writer.write_all(&length.to_be_bytes())?;
         writer.write_all(&buffer)?;
-        Ok(())
+        writer.flush()
     }
 }
 

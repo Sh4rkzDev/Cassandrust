@@ -127,16 +127,12 @@ impl Context {
     ///
     /// # Arguments
     ///
-    /// * `table` - The path of the table.
-    pub fn get_table_schema(&self, table: &Path) -> std::io::Result<Schema> {
-        let keyspace = get_file_name(
-            table.parent().ok_or(io_error!("Invalid table path"))?,
-            "Invalid keyspace path".to_string(),
-        )?;
+    /// * `table` - The name of the table.
+    pub fn get_table_schema(&self, keyspace: &str, table: &str) -> std::io::Result<Schema> {
         self.ctx
-            .get(&keyspace)
+            .get(keyspace)
             .ok_or(not_found_error!("Keyspace does not exist"))?
-            .get_table_schema(&get_file_name(table, "Invalid table name".to_string())?)
+            .get_table_schema(table)
     }
 
     /// Reads the table from the keyspace that is currently set in the connection context.

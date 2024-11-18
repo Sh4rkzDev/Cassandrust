@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-    "native", "db", "shared", "query"
-, "gossip", "server", "client"]
+    "native", "db", "shared", "query",
+    "server", "client", "inc"]
 resolver = "2"

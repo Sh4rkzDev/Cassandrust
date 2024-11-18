@@ -4,6 +4,7 @@ use std::{
 };
 
 use db::{Context, SchemaType};
+use query::Query;
 use shared::{get_keyspace, get_keyspace_name, io_error};
 
 use crate::native_protocol::{
@@ -61,7 +62,11 @@ impl Request {
                     let cols = query.query.get_cols();
                     let mut column_specs = Vec::new();
                     for col in cols {
-                        match ctx.get_table_schema(&table)?.get_schema_type(&col).unwrap() {
+                        match ctx
+                            .get_table_schema(&get_keyspace_name().unwrap(), &query.table)?
+                            .get_schema_type(&col)
+                            .unwrap()
+                        {
                             SchemaType::Int => {
                                 column_specs.push(ColumnSpec::new(col, DataTypeFlags::Int));
                             }
@@ -90,6 +95,13 @@ impl Request {
                 }
                 Ok(Response::ResultOp(ResultOP::Void))
             }
+        }
+    }
+
+    pub fn get_query(&self) -> Option<(Query, String)> {
+        match self {
+            Request::Query(query) => Some((query.query.clone(), query.table.clone())),
+            _ => None,
         }
     }
 

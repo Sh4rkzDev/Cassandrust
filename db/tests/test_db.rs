@@ -54,7 +54,9 @@ fn test_create_delete_table() {
     ctx.create_table(&table, schema.clone()).unwrap();
     assert!(table.exists());
 
-    let table_schema = ctx.get_table_schema(&table).unwrap();
+    let table_schema = ctx
+        .get_table_schema("ks_test", "table_test_create")
+        .unwrap();
     let table_primary_key = table_schema.get_primary_key();
     assert_eq!(schema.get_columns(), table_schema.get_columns());
     assert_eq!(

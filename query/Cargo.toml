@@ -7,3 +7,4 @@ edition = "2021"
 shared = { path = "../shared" }
 db = { path = "../db" }
 rand = "0.8.5"
+serde = { version = "1.0.215", features = ["derive"] }

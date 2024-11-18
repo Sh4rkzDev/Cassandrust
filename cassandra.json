@@ -1,7 +1,7 @@
 {
 	"nodes": [
 		{
-			"id": "node-1",
+			"id": "node_1",
 			"ip_address": "127.0.0.1",
 			"port": 9042,
 			"token_range": {
@@ -10,36 +10,36 @@
 			}
 		},
 		{
-			"id": "node-2",
+			"id": "node_2",
 			"ip_address": "127.0.0.1",
-			"port": 9043,
+			"port": 9044,
 			"token_range": {
 				"start": -5534023222112865483,
 				"end": -1844674407370955162
 			}
 		},
 		{
-			"id": "node-3",
+			"id": "node_3",
 			"ip_address": "127.0.0.1",
-			"port": 9044,
+			"port": 9046,
 			"token_range": {
 				"start": -1844674407370955161,
 				"end": 1844674407370955161
 			}
 		},
 		{
-			"id": "node-4",
+			"id": "node_4",
 			"ip_address": "127.0.0.1",
-			"port": 9045,
+			"port": 9048,
 			"token_range": {
 				"start": 1844674407370955162,
 				"end": 5534023222112865483
 			}
 		},
 		{
-			"id": "node-5",
+			"id": "node_5",
 			"ip_address": "127.0.0.1",
-			"port": 9046,
+			"port": 9050,
 			"token_range": {
 				"start": 5534023222112865484,
 				"end": 9223372036854775807
