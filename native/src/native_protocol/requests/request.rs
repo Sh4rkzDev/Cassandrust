@@ -7,12 +7,15 @@ use db::{Context, SchemaType};
 use query::Query;
 use shared::{get_keyspace, get_keyspace_name, io_error};
 
-use crate::native_protocol::{
-    header::Opcode,
-    models::query::QueryMsg,
-    responses::{
-        response::Response,
-        result_op::{ColumnSpec, DataTypeFlags, ResultOP, RowMetadata, Rows},
+use crate::{
+    client::ConsistencyLevel,
+    native_protocol::{
+        header::Opcode,
+        models::query::QueryMsg,
+        responses::{
+            response::Response,
+            result_op::{ColumnSpec, DataTypeFlags, ResultOP, RowMetadata, Rows},
+        },
     },
 };
 
@@ -125,6 +128,13 @@ impl Request {
                 query.flags,
             ),
             Request::Startup(startup) => write_startup(writer, startup),
+        }
+    }
+
+    pub fn get_consistency(&self) -> Option<&ConsistencyLevel> {
+        match self {
+            Request::Query(query) => Some(&query.consistency),
+            _ => None,
         }
     }
 }

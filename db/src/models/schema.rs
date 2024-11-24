@@ -5,6 +5,7 @@ use std::{
 };
 
 use chrono::DateTime;
+use serde::{Deserialize, Serialize};
 use shared::{io_error, map_io_error};
 
 use super::primary_key::PrimaryKey;
@@ -18,7 +19,7 @@ use super::primary_key::PrimaryKey;
 /// - Int
 /// - Text
 /// - Timestamp
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SchemaType {
     Boolean,
     Float,
@@ -159,7 +160,7 @@ impl SchemaType {
 /// The schema contains the columns and the primary key.  
 /// Each column has a name and a data type and is used to parse the data from the table.  
 /// The primary key contains the partition key and the clustering key.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Schema {
     columns: HashMap<String, SchemaType>,
     primary_key: PrimaryKey,
@@ -172,6 +173,10 @@ impl Schema {
             columns,
             primary_key,
         }
+    }
+
+    pub fn add_column(&mut self, column: String, schema_type: SchemaType) {
+        self.columns.insert(column, schema_type);
     }
 
     /// Returns a function that parses the data in form of bytes for the specified column.
@@ -224,7 +229,7 @@ impl Schema {
         for line in reader.lines() {
             let line = line?;
             let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() < 2 {
+            if parts.len() < 2 && parts[0] != "CLUSTERING_KEY" {
                 return Err(io_error!(
                     "Invalid schema: each line must have at least two parts. Error Line: "
                         .to_owned()

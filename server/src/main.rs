@@ -26,7 +26,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    let partitioner = std::sync::Arc::new(Partitioner::read_config(node.port.unwrap()));
+    let partitioner = Arc::new(Partitioner::read_config(node.port.unwrap()));
     let node_dir = get_workspace()
         .join("store")
         .join(&partitioner.self_node.id);
@@ -42,6 +42,7 @@ fn main() {
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", node.port.unwrap())).unwrap();
     println!("Server listening on port {}", node.port.unwrap());
+    // generate_sample_keys_and_hashes(50);
     while let Ok(stream) = listener.accept() {
         let partitioner = std::sync::Arc::clone(&partitioner);
         let ctx_clone = Arc::clone(&ctx);

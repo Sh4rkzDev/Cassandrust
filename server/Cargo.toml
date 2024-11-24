@@ -13,3 +13,4 @@ native = { path = "../native", features = ["server"] }
 inc = { path = "../inc" }
 db = { path = "../db" }
 query = { path = "../query" }
+rand = "0.8.5"

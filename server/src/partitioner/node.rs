@@ -15,7 +15,6 @@ pub struct Node {
     pub ip_address: String,
     pub port: u16,
     pub token_range: TokenRange,
-    // pub active: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

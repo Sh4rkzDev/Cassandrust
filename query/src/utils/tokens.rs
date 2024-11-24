@@ -143,21 +143,29 @@ pub fn separate_parenthesis(parts: &Vec<String>) -> std::io::Result<Vec<String>>
     let mut open_parentheses = 0;
     let mut close_parentheses = 0;
     for part in parts {
-        if let Some(stripped) = part.strip_prefix("(") {
+        let mut current = part.as_str();
+
+        while let Some(stripped) = current.strip_prefix('(') {
             res.push("(".to_string());
             open_parentheses += 1;
-            if !stripped.is_empty() {
-                res.push(stripped.to_string());
-            }
-        } else if let Some(stripped) = part.strip_suffix(")") {
-            if !stripped.is_empty() {
-                res.push(stripped.to_string());
-            }
-            res.push(")".to_string());
-            close_parentheses += 1;
-        } else {
-            res.push(part.to_owned());
+            current = stripped;
         }
+
+        let mut stripped_part = current.to_string();
+        let mut close_count = 0;
+        while let Some(new_stripped) = stripped_part.strip_suffix(')') {
+            close_count += 1;
+            stripped_part = new_stripped.to_string();
+        }
+
+        if !stripped_part.is_empty() {
+            res.push(stripped_part);
+        }
+
+        for _ in 0..close_count {
+            res.push(")".to_string());
+        }
+        close_parentheses += close_count;
     }
     if open_parentheses != close_parentheses {
         return Err(io_error!("Parentheses mismatch"));
@@ -412,5 +420,24 @@ mod tests {
         let res = get_columns_from_vec(&parts)?;
         assert_eq!(res, vec!["full name", "age", "location"]);
         Ok(())
+    }
+
+    #[test]
+    fn test_multiple_contiguous_parenthesis() {
+        let parts = vec!["(hello".to_string(), "(world))".to_string()];
+        let res = separate_parenthesis(&parts);
+        println!("{:?}", res);
+        assert!(res.is_ok());
+        assert_eq!(
+            res.unwrap(),
+            vec![
+                "(".to_string(),
+                "hello".to_string(),
+                "(".to_string(),
+                "world".to_string(),
+                ")".to_string(),
+                ")".to_string()
+            ]
+        )
     }
 }

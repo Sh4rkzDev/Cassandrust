@@ -1,4 +1,6 @@
-#[derive(Debug, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrimaryKey {
     partition_key: Vec<String>,
     clustering_key: Vec<String>,

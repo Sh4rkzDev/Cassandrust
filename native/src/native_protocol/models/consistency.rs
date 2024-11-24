@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use shared::io_error;
+
 /// A short (u16) representing possibles consistency levels.
 #[derive(Debug, PartialEq, Clone)]
 pub enum ConsistencyLevel {
@@ -9,11 +11,6 @@ pub enum ConsistencyLevel {
     Three = 0x0003,
     Quorum = 0x0004,
     All = 0x0005,
-    LocalQuorum = 0x0006,
-    EachQuorum = 0x0007,
-    Serial = 0x0008,
-    LocalSerial = 0x0009,
-    LocalOne = 0x000A,
 }
 
 impl Display for ConsistencyLevel {
@@ -25,11 +22,6 @@ impl Display for ConsistencyLevel {
             ConsistencyLevel::Three => write!(f, "THREE"),
             ConsistencyLevel::Quorum => write!(f, "QUORUM"),
             ConsistencyLevel::All => write!(f, "ALL"),
-            ConsistencyLevel::LocalQuorum => write!(f, "LOCAL_QUORUM"),
-            ConsistencyLevel::EachQuorum => write!(f, "EACH_QUORUM"),
-            ConsistencyLevel::Serial => write!(f, "SERIAL"),
-            ConsistencyLevel::LocalSerial => write!(f, "LOCAL_SERIAL"),
-            ConsistencyLevel::LocalOne => write!(f, "LOCAL_ONE"),
         }
     }
 }
@@ -43,15 +35,7 @@ impl ConsistencyLevel {
             0x0003 => Ok(ConsistencyLevel::Three),
             0x0004 => Ok(ConsistencyLevel::Quorum),
             0x0005 => Ok(ConsistencyLevel::All),
-            0x0006 => Ok(ConsistencyLevel::LocalQuorum),
-            0x0007 => Ok(ConsistencyLevel::EachQuorum),
-            0x0008 => Ok(ConsistencyLevel::Serial),
-            0x0009 => Ok(ConsistencyLevel::LocalSerial),
-            0x000A => Ok(ConsistencyLevel::LocalOne),
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Invalid Consistency Level",
-            )),
+            _ => Err(io_error!("Invalid Consistency Level")),
         }
     }
 
@@ -63,15 +47,18 @@ impl ConsistencyLevel {
             "THREE" => Ok(ConsistencyLevel::Three),
             "QUORUM" => Ok(ConsistencyLevel::Quorum),
             "ALL" => Ok(ConsistencyLevel::All),
-            "LOCAL_QUORUM" => Ok(ConsistencyLevel::LocalQuorum),
-            "EACH_QUORUM" => Ok(ConsistencyLevel::EachQuorum),
-            "SERIAL" => Ok(ConsistencyLevel::Serial),
-            "LOCAL_SERIAL" => Ok(ConsistencyLevel::LocalSerial),
-            "LOCAL_ONE" => Ok(ConsistencyLevel::LocalOne),
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Invalid Consistency Level",
-            )),
+            _ => Err(io_error!("Invalid Consistency Level")),
+        }
+    }
+
+    pub fn to_u16(&self) -> u16 {
+        match self {
+            ConsistencyLevel::Any => 0x0000,
+            ConsistencyLevel::One => 0x0001,
+            ConsistencyLevel::Two => 0x0002,
+            ConsistencyLevel::Three => 0x0003,
+            ConsistencyLevel::Quorum => 0x0004,
+            ConsistencyLevel::All => 0x0005,
         }
     }
 }

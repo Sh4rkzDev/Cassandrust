@@ -3,12 +3,13 @@ use std::{
     net::{SocketAddr, TcpStream},
 };
 
-use native::client::{create_request, read_response, QUERY, READY, STARTUP};
+use native::client::{create_request, read_response, ConsistencyLevel, QUERY, READY, STARTUP};
 
 pub(crate) fn handle_input() {
     let mut input = String::new();
     println!("Enter a command:");
     while stdin().read_line(&mut input).is_ok() {
+        println!("Input: {}", input);
         let parts: Vec<&str> = input.split_whitespace().collect();
         match parts[0] {
             "CONNECT" => handle_connection(parts),
@@ -16,6 +17,7 @@ pub(crate) fn handle_input() {
                 println!("Invalid command");
             }
         }
+        input.clear();
         println!("Enter a command:");
     }
 }
@@ -33,7 +35,7 @@ fn handle_connection(parts: Vec<&str>) {
         "127.0.0.1:9042".parse().unwrap()
     };
     let mut stream = TcpStream::connect(addr).unwrap();
-    let frame = create_request(STARTUP, 1, None).unwrap();
+    let frame = create_request(STARTUP, 1, None, None).unwrap();
 
     frame.write(&mut stream).unwrap();
     println!("Frame sent: {:?}", frame);
@@ -55,7 +57,16 @@ fn handle_connection(parts: Vec<&str>) {
         return;
     }
 
-    let frame = create_request(QUERY, 1, Some(&buffer)).unwrap();
+    let mut cl = String::new();
+    println!("Enter consistency level (ONE, TWO, THREE, QUORUM, ALL):");
+    stdin().read_line(&mut cl).unwrap();
+
+    let consistency = ConsistencyLevel::from_str(cl.trim()).unwrap_or_else(|_| {
+        println!("Invalid consistency level, using ONE");
+        ConsistencyLevel::One
+    });
+
+    let frame = create_request(QUERY, 1, Some(&buffer), Some(consistency)).unwrap();
 
     frame.write(&mut stream).unwrap();
 

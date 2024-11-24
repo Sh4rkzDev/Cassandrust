@@ -77,7 +77,7 @@ impl Context {
     ///
     /// * `table` - The path of the new table directory.
     /// * `schema` - The schema of the table.
-    pub fn create_table(&mut self, table: &Path, schema: Schema) -> std::io::Result<()> {
+    pub fn create_table(&mut self, table: &Path, schema: &Schema) -> std::io::Result<()> {
         let keyspace = get_file_name(
             table.parent().ok_or(io_error!("Invalid table path"))?,
             "Invalid keyspace path".to_string(),
@@ -85,7 +85,7 @@ impl Context {
         self.ctx
             .get_mut(&keyspace)
             .ok_or(not_found_error!("Keyspace does not exist"))?
-            .create_table(table, schema)
+            .create_table(table, schema.clone())
     }
 
     /// Drops the keyspace from the node.

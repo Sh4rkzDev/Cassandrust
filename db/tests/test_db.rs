@@ -51,7 +51,7 @@ fn test_create_delete_table() {
     cols.insert("age".to_string(), SchemaType::Int);
     let prim_key = PrimaryKey::new(vec!["id".to_string()], vec!["age".to_string()]);
     let schema = Schema::new(cols, prim_key.clone());
-    ctx.create_table(&table, schema.clone()).unwrap();
+    ctx.create_table(&table, &schema).unwrap();
     assert!(table.exists());
 
     let table_schema = ctx
@@ -230,5 +230,5 @@ fn test_create_table_already_exist() {
     cols.insert("age".to_string(), SchemaType::Int);
     let prim_key = PrimaryKey::new(vec!["id".to_string()], vec!["age".to_string()]);
     let schema = Schema::new(cols, prim_key);
-    assert!(ctx.create_table(&table, schema).is_err());
+    assert!(ctx.create_table(&table, &schema).is_err());
 }

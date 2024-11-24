@@ -9,9 +9,9 @@ use super::{
 };
 
 /// An array of SQL keywords used in query parsing.
-pub const KEYWORDS: [&str; 15] = [
-    "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE", "AND", "OR", "SET", "INTO", "ORDER",
-    "BY", "ASC", "DESC", "NOT",
+pub const KEYWORDS: [&str; 18] = [
+    "CREATE", "DROP", "TABLE", "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE", "AND",
+    "OR", "SET", "INTO", "ORDER", "BY", "ASC", "DESC", "NOT",
 ];
 
 /// Represents a parsed SQL query, containing a statement and an optional WHERE clause.
@@ -59,47 +59,57 @@ impl Query {
         table: &Path,
         ctx: &mut Context,
     ) -> std::io::Result<Option<Vec<Cols>>> {
-        let ks = table
-            .parent()
-            .unwrap()
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap();
-        let schema = ctx.get_table_schema(ks, table.file_name().unwrap().to_str().unwrap())?;
         match &self.statement {
-            Statement::Select(to_print, order) => {
-                let mut rows = Vec::new();
-                ctx.read_table(table, &mut |row| {
-                    if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
-                        rows.push(row);
+            Statement::CreateTable(schema) => ctx.create_table(table, schema).map(|_| None),
+            Statement::DropTable => ctx.drop_table(table).map(|_| None),
+            _ => {
+                let ks = table
+                    .parent()
+                    .unwrap()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap();
+                let schema =
+                    ctx.get_table_schema(ks, table.file_name().unwrap().to_str().unwrap())?;
+                match &self.statement {
+                    Statement::Select(to_print, order) => {
+                        let mut rows = Vec::new();
+                        ctx.read_table(table, &mut |row| {
+                            if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
+                                rows.push(row);
+                            }
+                            Ok(())
+                        })?;
+                        order_rows(&mut rows, order, to_print)
                     }
-                    Ok(())
-                })?;
-                order_rows(&mut rows, order, to_print)
+                    Statement::Insert(new_row) => {
+                        ctx.append_to_table(table, new_row.clone()).map(|_| None)
+                    }
+                    Statement::Update(new_rows) => ctx
+                        .update_table(table, &mut |mut row| {
+                            if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
+                                for (col, val) in new_rows.iter() {
+                                    row.insert(col.to_string(), val.to_string());
+                                }
+                                Ok(Some(row))
+                            } else {
+                                Ok(Some(row))
+                            }
+                        })
+                        .map(|_| None),
+                    Statement::Delete => ctx
+                        .update_table(table, &mut |row| {
+                            if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
+                                Ok(None)
+                            } else {
+                                Ok(Some(row.clone()))
+                            }
+                        })
+                        .map(|_| None),
+                    _ => panic!("Should not reach here"),
+                }
             }
-            Statement::Insert(new_row) => ctx.append_to_table(table, new_row.clone()).map(|_| None),
-            Statement::Update(new_rows) => ctx
-                .update_table(table, &mut |mut row| {
-                    if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
-                        for (col, val) in new_rows.iter() {
-                            row.insert(col.to_string(), val.to_string());
-                        }
-                        Ok(Some(row))
-                    } else {
-                        Ok(Some(row))
-                    }
-                })
-                .map(|_| None),
-            Statement::Delete => ctx
-                .update_table(table, &mut |row| {
-                    if self.where_clause.as_ref().unwrap().eval(&row, &schema)? {
-                        Ok(None)
-                    } else {
-                        Ok(Some(row.clone()))
-                    }
-                })
-                .map(|_| None),
         }
     }
 
@@ -113,13 +123,14 @@ impl Query {
     /// * `UPDATE`: The columns that appear in the `WHERE` clause.
     /// * `DELETE`: The columns that appear in the `WHERE` clause.
     ///
-    /// In all other cases, it returns `None`.
+    /// In all other cases, it returns an empty vector.
     pub fn get_keys(&self) -> Vec<String> {
         match &self.statement {
             Statement::Select(_, _) => self.where_clause.as_ref().unwrap().get_keys(),
             Statement::Insert(row) => row.keys().cloned().collect(),
             Statement::Update(_) => self.where_clause.as_ref().unwrap().get_keys(),
             Statement::Delete => self.where_clause.as_ref().unwrap().get_keys(),
+            _ => Vec::new(),
         }
     }
 

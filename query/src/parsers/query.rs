@@ -3,7 +3,11 @@ use shared::io_error;
 use crate::{models::query::Query, utils::tokens::separate_parenthesis};
 
 use super::{
-    delete::process_delete, insert::process_insert, select::process_select, update::process_update,
+    delete::process_delete,
+    insert::process_insert,
+    select::process_select,
+    table::{process_table_creation, process_table_deletion},
+    update::process_update,
 };
 
 /// Processes a raw SQL query string and determines the query type.
@@ -43,6 +47,8 @@ pub fn process_query(query: &str) -> std::io::Result<(Query, String)> {
         "INSERT" => process_insert(&rest_of_query),
         "UPDATE" => process_update(&rest_of_query),
         "DELETE" => process_delete(&rest_of_query),
+        "CREATE" => process_table_creation(&rest_of_query),
+        "DROP" => process_table_deletion(&rest_of_query),
         query => Err(io_error!(format!(
             "Invalid query: cannot recognize query '{query}'",
         ))),
@@ -65,8 +71,9 @@ mod tests {
 
     #[test]
     fn test_process_query_valid_select_all() {
-        let query_str = "SELECT * FROM clients";
+        let query_str = "SELECT * FROM clients WHERE name = 'Pepe'";
         let result = process_query(query_str);
+        println!("{:?}", result);
         assert!(result.is_ok());
 
         let (_, path) = result.unwrap();
@@ -75,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_process_query_valid_select_with_order() {
-        let query_str = "SELECT id FROM clients ORDER BY name DESC";
+        let query_str = "SELECT id FROM clients WHERE name = 'Pepito' ORDER BY name DESC";
         let result = process_query(query_str);
         assert!(result.is_ok());
 
@@ -207,5 +214,39 @@ mod tests {
         let query_str = "DELETE FROM clients id = 1";
         let result = process_query(query_str);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_process_create_table() {
+        let query_str = "CREATE TABLE clients (id int, name text, PRIMARY KEY (id))";
+        let result = process_query(query_str);
+        assert!(result.is_ok());
+
+        let (_, path) = result.unwrap();
+        assert_eq!(path, "clients");
+    }
+
+    #[test]
+    fn test_process_create_table_invalid() {
+        let query_str = "CREATE TABLE clients (id int, name text, PRIMARY KEY id)";
+        let result = process_query(query_str);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_process_create_table_invalid_syntax() {
+        let query_str = "CREATE TABLE clients id int, name text, PRIMARY KEY (id)";
+        let result = process_query(query_str);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_process_create_table_complete() {
+        let query_str = "CREATE TABLE clients (id int, name text, age int, date timestamp, PRIMARY KEY (id, name))";
+        let result = process_query(query_str);
+        assert!(result.is_ok());
+
+        let (_, path) = result.unwrap();
+        assert_eq!(path, "clients");
     }
 }

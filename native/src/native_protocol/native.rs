@@ -3,6 +3,8 @@ use std::io::{Read, Write};
 use query::Query;
 use shared::io_error;
 
+use crate::client::ConsistencyLevel;
+
 use super::{
     header::{Header, Opcode},
     requests::request::Request,
@@ -34,6 +36,13 @@ impl Body {
         match self {
             Body::Request(_) => None,
             Body::Response(response) => response.get_rows(),
+        }
+    }
+
+    pub fn get_consistency(&self) -> Option<&ConsistencyLevel> {
+        match self {
+            Body::Request(request) => request.get_consistency(),
+            Body::Response(_) => None,
         }
     }
 }

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use db::{PrimaryKey, Schema};
 use serde::{Deserialize, Serialize};
 use shared::io_error;
 
@@ -25,8 +26,9 @@ pub(crate) enum Statement {
     /// Update (new row)
     Update(HashMap<String, String>),
     Delete,
-    //  ///Create table (columns<name, type>). Partition key is under the key "PARTITION_KEY", same for clustering key.
-    // CreateTable(HashMap<String, String>),
+    ///Create table (columns<name, type>). Partition key is under the key "PARTITION_KEY", same for clustering key.
+    CreateTable(Schema),
+    DropTable,
 }
 
 impl Statement {
@@ -46,6 +48,11 @@ impl Statement {
             "INSERT" => Ok(Statement::Insert(HashMap::new())),
             "UPDATE" => Ok(Statement::Update(HashMap::new())),
             "DELETE" => Ok(Statement::Delete),
+            "CREATE TABLE" => Ok(Statement::CreateTable(Schema::new(
+                HashMap::new(),
+                PrimaryKey::new(Vec::new(), Vec::new()),
+            ))),
+            "DROP TABLE" => Ok(Statement::DropTable),
             _ => Err(io_error!("Invalid statement")),
         }
     }
