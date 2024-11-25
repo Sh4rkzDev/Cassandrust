@@ -5,11 +5,11 @@ use super::consistency::ConsistencyLevel;
 /// A byte representing the possible flags to use within a QUERY message
 #[derive(Debug)]
 enum QueryFlagsMask {
-    Values = 0x01,
+    // Values = 0x01,
     SkipMetadata = 0x02,
-    PageSize = 0x04,
-    WithPagingState = 0x08,
-    WithNamesForValues = 0x40,
+    // PageSize = 0x04,
+    // WithPagingState = 0x08,
+    // WithNamesForValues = 0x40,
 }
 
 #[derive(Debug)]

@@ -18,7 +18,7 @@ pub enum Body {
 }
 
 impl Body {
-    pub fn get_keys(&self) -> Option<Vec<String>> {
+    pub fn get_keys(&self) -> Option<Vec<(String, String)>> {
         match self {
             Body::Request(request) => request.get_keys(),
             Body::Response(_) => None,
@@ -36,6 +36,13 @@ impl Body {
         match self {
             Body::Request(_) => None,
             Body::Response(response) => response.get_rows(),
+        }
+    }
+
+    pub fn get_error(&self) -> Option<&str> {
+        match self {
+            Body::Request(_) => None,
+            Body::Response(response) => response.get_error(),
         }
     }
 
@@ -156,7 +163,10 @@ mod tests {
                 crate::native_protocol::models::consistency::ConsistencyLevel::Three
             );
             assert_eq!(query_msg.flags, 0);
-            assert_eq!(query_msg.query.get_keys(), vec!["id"]);
+            assert_eq!(
+                query_msg.query.get_keys(),
+                vec![("id".to_string(), "1".to_string())]
+            );
         } else {
             panic!("Invalid body");
         }

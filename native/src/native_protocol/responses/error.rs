@@ -297,13 +297,13 @@ impl Error {
                 let keyspace = self
                     .extras
                     .get("keyspace")
-                    .ok_or(io_error!("'keyspace' not found"))?;
+                    .ok_or(io_error!("'keyspace' key not found"))?;
                 bytes_written += write_string(writer, keyspace)?;
 
                 let table = self
                     .extras
                     .get("table")
-                    .ok_or(io_error!("'table' not found"))?;
+                    .ok_or(io_error!("'table' key not found"))?;
                 bytes_written += write_string(writer, table)?;
             }
             _ => {}

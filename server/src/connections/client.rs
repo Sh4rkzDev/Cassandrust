@@ -17,7 +17,10 @@ use native::{
 };
 use shared::{get_keyspace, get_keyspace_name};
 
-use crate::{connections::node::send_message, partitioner::murmur3::Partitioner};
+use crate::{
+    connections::node::send_message,
+    partitioner::murmur3::{Partitioner, ALL_NODES},
+};
 
 pub fn handle_connection(
     mut stream: TcpStream,
@@ -27,14 +30,13 @@ pub fn handle_connection(
     let mut stream_clone = stream.try_clone().unwrap();
     let mut reader = BufReader::new(&mut stream_clone);
     let frame = read_request(&mut reader).unwrap();
-    println!("Frame received: {:?}", frame);
     if frame.header.opcode != STARTUP {
         let error = create_error_response(
             ErrorCode::ProtocolError,
             "Connection not started with startup message",
+            None,
         );
         let response = create_response_frame(ERROR, frame.header.stream, error).unwrap();
-        println!("Error frame: {:?}", response);
         response.write(&mut stream).unwrap();
     }
     create_response_frame(READY, frame.header.stream, create_ready_response())
@@ -44,23 +46,29 @@ pub fn handle_connection(
 
     println!("Waiting for query...");
     let frame = read_request(&mut reader).unwrap();
-    let mut query = frame.body.get_query().unwrap();
-    println!("Frame received: {:?}", frame);
+    let (mut query, table) = frame.body.get_query().unwrap();
 
-    let binding = query.0.get_keys();
-    let key = binding
-        .iter()
-        .filter(|key| {
-            ctx.read()
-                .unwrap()
-                .get_table_schema(&get_keyspace_name().unwrap(), &query.1)
-                .unwrap()
-                .get_primary_key()
-                .get_partition_key()
-                .contains(key)
-        })
-        .collect::<Vec<_>>();
+    let key = match query.is_ddl() {
+        true => vec![ALL_NODES.to_string()],
+        false => {
+            let binding = query.get_keys();
+            let read_guard = ctx.read().unwrap();
+            binding
+                .iter()
+                .filter(|(col, _)| {
+                    read_guard
+                        .get_table_schema(&get_keyspace_name().unwrap(), &table)
+                        .unwrap()
+                        .get_primary_key()
+                        .get_partition_key()
+                        .contains(col)
+                })
+                .map(|(_, val)| val.clone())
+                .collect::<Vec<_>>()
+        }
+    };
 
+    println!("Key: {:?}", key);
     let mut all_rows = Vec::new();
     let nodes = partitioner.get_nodes(&key[0]).unwrap();
     let mut acks = 0;
@@ -69,20 +77,32 @@ pub fn handle_connection(
         if partitioner.is_me(node) {
             println!("Query received is for me");
             let mut ctx_write = ctx.write().unwrap();
-            let res = query
-                .0
-                .process(&get_keyspace().join(query.1.clone()), &mut *ctx_write)
-                .unwrap();
+            let res = query.process(&get_keyspace().join(table.clone()), &mut *ctx_write);
+
+            if res.is_err() {
+                let error = create_error_response(
+                    ErrorCode::AlreadyExists,
+                    &res.unwrap_err().to_string(),
+                    Some(HashMap::from([
+                        ("keyspace".to_string(), get_keyspace_name().unwrap()),
+                        ("table".to_string(), table.clone()),
+                    ])),
+                );
+                let response = create_response_frame(ERROR, frame.header.stream, error).unwrap();
+                response.write(&mut stream).unwrap();
+                return;
+            }
+
             drop(ctx_write);
-            all_rows.push(res);
+            all_rows.push(res.unwrap());
             acks += 1;
             continue;
         }
-        println!("Forwarding query to another node");
+        println!("Forwarding query to {}", node.id);
         let frame_type = FrameType::Query;
         let body = Body::Query(inc::query::Query {
-            query: query.0.clone(),
-            table: query.1.clone(),
+            query: query.clone(),
+            table: table.clone(),
         });
         let mut stream = TcpStream::connect((&node.ip_address[..], node.port + 1)).unwrap();
         send_message(&mut stream, frame_type, &body).unwrap();
@@ -100,6 +120,7 @@ pub fn handle_connection(
         let error = create_error_response(
             ErrorCode::ServerError,
             "Not enough nodes responded to query",
+            None,
         );
         let response = create_response_frame(ERROR, frame.header.stream, error).unwrap();
         response.write(&mut stream).unwrap();
@@ -110,11 +131,11 @@ pub fn handle_connection(
     let (opcode, result) = match rows {
         Ok(rows) => (
             RESULT,
-            create_result_response(vec_to_rows(rows, &query.0.get_cols(), &query.1, ctx)),
+            create_result_response(vec_to_rows(rows, &query.get_cols(), &table, ctx)),
         ),
         Err(e) => (
             ERROR,
-            create_error_response(ErrorCode::ServerError, &e.to_string()),
+            create_error_response(ErrorCode::ServerError, &e.to_string(), None),
         ),
     };
     let res_frame = create_response_frame(opcode, frame.header.stream, result).unwrap();

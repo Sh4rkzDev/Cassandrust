@@ -4,7 +4,7 @@ use shared::io_error;
 
 use crate::native_protocol::{
     models::{consistency::ConsistencyLevel, query::QueryMsg},
-    parsers::long_string::read_long_string,
+    parsers::long_string::{read_long_string, write_long_string},
 };
 
 /// Reads a query body from the provided reader.
@@ -50,8 +50,7 @@ pub(crate) fn write_query<W: Write>(
     flags: u8,
 ) -> std::io::Result<u32> {
     let mut buffer = Vec::new();
-    buffer.extend((query_str.len() as u32).to_be_bytes());
-    buffer.extend(query_str.as_bytes());
+    write_long_string(&mut buffer, &query_str)?;
     buffer.extend((consistency_level as u16).to_be_bytes());
     buffer.push(flags.to_be());
 

@@ -116,6 +116,8 @@ impl Query {
     /// Returns a vector of columns that act as keys for the query.
     /// This is useful to determine the nodes that need to be queried.
     ///
+    /// Each element is a tuple of the column name and the value to be queried.
+    ///
     /// # Returns
     ///
     /// * `SELECT`: The columns that appear in the `WHERE` clause.
@@ -124,10 +126,10 @@ impl Query {
     /// * `DELETE`: The columns that appear in the `WHERE` clause.
     ///
     /// In all other cases, it returns an empty vector.
-    pub fn get_keys(&self) -> Vec<String> {
+    pub fn get_keys(&self) -> Vec<(String, String)> {
         match &self.statement {
             Statement::Select(_, _) => self.where_clause.as_ref().unwrap().get_keys(),
-            Statement::Insert(row) => row.keys().cloned().collect(),
+            Statement::Insert(row) => row.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
             Statement::Update(_) => self.where_clause.as_ref().unwrap().get_keys(),
             Statement::Delete => self.where_clause.as_ref().unwrap().get_keys(),
             _ => Vec::new(),
@@ -139,6 +141,13 @@ impl Query {
             Statement::Select(cols, _) => cols.clone(),
             _ => Vec::new(),
         }
+    }
+
+    pub fn is_ddl(&self) -> bool {
+        matches!(
+            self.statement,
+            Statement::CreateTable(_) | Statement::DropTable
+        )
     }
 }
 

@@ -50,4 +50,11 @@ impl Response {
             _ => None,
         }
     }
+
+    pub(crate) fn get_error(&self) -> Option<&str> {
+        match self {
+            Response::Error(error) => Some(&error.message),
+            _ => None,
+        }
+    }
 }

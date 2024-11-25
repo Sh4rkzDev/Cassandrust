@@ -288,15 +288,15 @@ impl WhereClause {
         }
     }
 
-    pub(crate) fn get_keys(&self) -> Vec<String> {
+    pub(crate) fn get_keys(&self) -> Vec<(String, String)> {
         match self {
             WhereClause::Comp(comp) => match comp {
-                Comparator::Equal(v1, _, _)
-                | Comparator::GreaterThan(v1, _, _)
-                | Comparator::LessThan(v1, _, _)
-                | Comparator::GreaterThanOrEqual(v1, _, _)
-                | Comparator::LessThanOrEqual(v1, _, _) => {
-                    vec![v1.to_string()]
+                Comparator::Equal(col, val, _)
+                | Comparator::GreaterThan(col, val, _)
+                | Comparator::LessThan(col, val, _)
+                | Comparator::GreaterThanOrEqual(col, val, _)
+                | Comparator::LessThanOrEqual(col, val, _) => {
+                    vec![(col.to_string(), val.to_string())]
                 }
             },
             WhereClause::Tree(left, _, right) => {

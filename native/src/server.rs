@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{collections::HashMap, io::Read};
 
 use crate::native_protocol::{
     header::{Header, Opcode},
@@ -19,9 +19,18 @@ pub fn read_request<R: Read>(stream: &mut R) -> std::io::Result<Frame> {
     Frame::read(stream)
 }
 
-pub fn create_error_response(code: ErrorCode, message: &str) -> Response {
+pub fn create_error_response(
+    code: ErrorCode,
+    message: &str,
+    extras: Option<HashMap<String, String>>,
+) -> Response {
     let mut error = Error::new(code, message.to_string());
     error.add_extra("CQL_VERSION".to_string(), "3.0.0".to_string());
+    if let Some(extras) = extras {
+        for (key, value) in extras {
+            error.add_extra(key, value);
+        }
+    }
     Response::Error(error)
 }
 

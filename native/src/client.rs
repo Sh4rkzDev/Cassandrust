@@ -14,6 +14,7 @@ pub use crate::native_protocol::models::consistency::ConsistencyLevel;
 pub const STARTUP: Opcode = Opcode::Startup;
 pub const QUERY: Opcode = Opcode::Query;
 pub const READY: Opcode = Opcode::Ready;
+pub const RESULT: Opcode = Opcode::ResultOP;
 
 pub fn create_request(
     opcode: Opcode,

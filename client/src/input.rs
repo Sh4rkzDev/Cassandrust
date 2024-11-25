@@ -3,13 +3,15 @@ use std::{
     net::{SocketAddr, TcpStream},
 };
 
-use native::client::{create_request, read_response, ConsistencyLevel, QUERY, READY, STARTUP};
+use native::{
+    client::{create_request, read_response, ConsistencyLevel, QUERY, READY, RESULT, STARTUP},
+    server::ERROR,
+};
 
 pub(crate) fn handle_input() {
     let mut input = String::new();
     println!("Enter a command:");
     while stdin().read_line(&mut input).is_ok() {
-        println!("Input: {}", input);
         let parts: Vec<&str> = input.split_whitespace().collect();
         match parts[0] {
             "CONNECT" => handle_connection(parts),
@@ -38,12 +40,10 @@ fn handle_connection(parts: Vec<&str>) {
     let frame = create_request(STARTUP, 1, None, None).unwrap();
 
     frame.write(&mut stream).unwrap();
-    println!("Frame sent: {:?}", frame);
 
     let mut reader = BufReader::new(&mut stream);
     let frame = read_response(&mut reader).unwrap();
     drop(reader);
-    println!("Frame received: {:?}", frame);
     if frame.header.opcode != READY {
         println!("Server not ready");
         return;
@@ -70,9 +70,25 @@ fn handle_connection(parts: Vec<&str>) {
 
     frame.write(&mut stream).unwrap();
 
-    println!("Frame sent: {:?}", frame);
-
     let mut reader = BufReader::new(&mut stream);
     let res_frame = read_response(&mut reader).unwrap();
-    println!("Rows: {:?}", res_frame.body.get_rows());
+    match res_frame.header.opcode {
+        RESULT => {
+            if let Some(rows) = res_frame.body.get_rows() {
+                println!("Rows:");
+                for row in rows {
+                    println!("\t{}", row.join(", "));
+                }
+            } else {
+                println!("No rows returned");
+            }
+        }
+        ERROR => {
+            println!("Error: {:?}", res_frame.body.get_error().unwrap());
+        }
+        _ => {
+            println!("Invalid response!");
+        }
+    }
+    println!("");
 }

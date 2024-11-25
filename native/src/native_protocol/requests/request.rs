@@ -112,7 +112,7 @@ impl Request {
         matches!(self, Request::Query(_))
     }
 
-    pub fn get_keys(&self) -> Option<Vec<String>> {
+    pub fn get_keys(&self) -> Option<Vec<(String, String)>> {
         match self {
             Request::Query(query) => Some(query.query.get_keys()),
             _ => None,

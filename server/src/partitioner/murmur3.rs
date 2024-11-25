@@ -4,6 +4,8 @@ use shared::not_found_error;
 
 use super::node::{load_nodes_config, Node};
 
+pub(crate) const ALL_NODES: &str = "ALL_NODES";
+
 pub struct Partitioner {
     pub(crate) ring: Vec<Node>,
     pub(crate) self_node: Node,
@@ -24,11 +26,17 @@ impl Partitioner {
 
     /// Returns the nodes that are responsible for the given key.
     pub fn get_nodes(&self, key: &str) -> std::io::Result<Vec<&Node>> {
+        if key == ALL_NODES {
+            return Ok(self.ring.iter().collect());
+        }
+
         let hash = murmur3_x64_128(&mut key.as_bytes(), 0)? as i64;
+        println!("Hash: {}", hash);
         let mut nodes = Vec::new();
         let mut found = -1;
         for (idx, node) in self.ring.iter().enumerate() {
             if hash >= node.token_range.start && hash <= node.token_range.end {
+                println!("Node: {:?}", node);
                 nodes.push(node);
                 found = idx as i32;
                 break;
@@ -49,6 +57,9 @@ impl Partitioner {
     }
 }
 
+/// Used for debugging purposes.
+///
+/// Generates sample keys and hashes to test the partitioner and hashing function to see where the query will be routed.
 pub fn generate_sample_keys_and_hashes(sample_size: usize) {
     let mut rng = rand::thread_rng();
 
