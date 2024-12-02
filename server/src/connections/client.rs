@@ -143,7 +143,9 @@ pub fn handle_connection(
     }
 
     let cl = frame.body.get_consistency().unwrap();
-    if acks < cl.to_u16() && cl != &ConsistencyLevel::Quorum && cl != &ConsistencyLevel::All {
+    if (acks < cl.to_u16() && cl != &ConsistencyLevel::Quorum && cl != &ConsistencyLevel::All)
+        || (acks < 3 && cl == &ConsistencyLevel::All)
+    {
         let error = create_error_response(
             ErrorCode::ServerError,
             "Not enough nodes responded to query",
