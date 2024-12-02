@@ -426,7 +426,6 @@ mod tests {
     fn test_multiple_contiguous_parenthesis() {
         let parts = vec!["(hello".to_string(), "(world))".to_string()];
         let res = separate_parenthesis(&parts);
-        println!("{:?}", res);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),

@@ -73,7 +73,6 @@ mod tests {
     fn test_process_query_valid_select_all() {
         let query_str = "SELECT * FROM clients WHERE name = 'Pepe'";
         let result = process_query(query_str);
-        println!("{:?}", result);
         assert!(result.is_ok());
 
         let (_, path) = result.unwrap();

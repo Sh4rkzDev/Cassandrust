@@ -43,7 +43,6 @@ fn handle_connection(
     let frame = read_inc_frame(&mut stream).unwrap();
     match frame {
         (FrameType::Query, Body::Query(mut query)) => {
-            println!("Query received: {:?}", query);
             let res = query
                 .query
                 .process(&get_keyspace().join(query.table), &mut ctx.write().unwrap())
@@ -53,10 +52,9 @@ fn handle_connection(
                 FrameType::Result,
                 &Body::Result(Result { rows: res }),
             )
-            .unwrap();
+            .unwrap_or_else(|_| {});
         }
         (FrameType::Syn, Body::Syn(syn)) => {
-            println!("Syn received");
             handle_gossip(syn, stream, manager);
         }
         _ => {

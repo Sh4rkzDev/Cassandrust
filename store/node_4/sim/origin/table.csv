@@ -1,2 +1,1 @@
-id,origin,destination,date,distance
-6,WAK,LAN,NULL,12530
+id,origin,destination,date,distance,last_update

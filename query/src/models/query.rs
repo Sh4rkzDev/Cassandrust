@@ -149,6 +149,30 @@ impl Query {
             Statement::CreateTable(_) | Statement::DropTable
         )
     }
+
+    pub fn add_col(&mut self, col: &str, val: &str) {
+        match &mut self.statement {
+            Statement::Select(cols, _) => cols.push(col.to_string()),
+            Statement::Insert(row) | Statement::Update(row) => {
+                row.insert(col.to_string(), val.to_string());
+            }
+            _ => panic!("Should not reach here"),
+        }
+    }
+
+    pub fn remove_col(&mut self, col: &str) {
+        match &mut self.statement {
+            Statement::Select(cols, _) => {
+                if let Some(idx) = cols.iter().position(|c| c == col) {
+                    cols.remove(idx);
+                }
+            }
+            Statement::Insert(row) | Statement::Update(row) => {
+                row.remove(col);
+            }
+            _ => panic!("Should not reach here"),
+        }
+    }
 }
 
 fn order_rows(

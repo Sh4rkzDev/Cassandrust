@@ -3,5 +3,6 @@ origin text
 destination text
 date timestamp
 distance int
+last_update timestamp
 PARTITION_KEY origin
 CLUSTERING_KEY date

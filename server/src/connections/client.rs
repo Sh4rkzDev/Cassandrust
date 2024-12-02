@@ -12,15 +12,18 @@ use native::{
     server::{
         create_error_response, create_ready_response, create_response_frame,
         create_result_response, read_request, ColumnSpec, DataTypeFlags, ErrorCode, RowMetadata,
-        Rows, RowsMetadaFlagsMask, ERROR, READY, RESULT,
+        Rows as NativeRows, RowsMetadaFlagsMask, ERROR, READY, RESULT,
     },
 };
 use shared::{get_keyspace, get_keyspace_name};
 
 use crate::{
-    connections::node::send_message,
+    connections::{node::send_message, read_repair::handle_read_repair},
     partitioner::murmur3::{Partitioner, ALL_NODES},
 };
+
+pub(crate) type Row = Vec<String>;
+pub(crate) type Rows = Vec<Row>;
 
 pub fn handle_connection(
     mut stream: TcpStream,
@@ -48,32 +51,52 @@ pub fn handle_connection(
     let frame = read_request(&mut reader).unwrap();
     let (mut query, table) = frame.body.get_query().unwrap();
 
-    let key = match query.is_ddl() {
-        true => vec![ALL_NODES.to_string()],
-        false => {
-            let binding = query.get_keys();
-            let read_guard = ctx.read().unwrap();
-            binding
-                .iter()
-                .filter(|(col, _)| {
-                    read_guard
-                        .get_table_schema(&get_keyspace_name().unwrap(), &table)
-                        .unwrap()
-                        .get_primary_key()
-                        .get_partition_key()
-                        .contains(col)
-                })
-                .map(|(_, val)| val.clone())
-                .collect::<Vec<_>>()
+    let key;
+    if query.is_ddl() {
+        key = vec![ALL_NODES.to_string()];
+    } else {
+        let binding = query.get_keys();
+        let read_guard = ctx.read().unwrap();
+        let schema = read_guard
+            .get_table_schema(&get_keyspace_name().unwrap(), &table)
+            .unwrap();
+        drop(read_guard);
+        let primary_key = schema.get_primary_key();
+        let keys = binding
+            .iter()
+            .filter(|(col, _)| {
+                primary_key.get_partition_key().contains(col)
+                    || primary_key.get_clustering_key().contains(col)
+            })
+            .map(|(_, val)| val.clone())
+            .collect::<Vec<_>>();
+
+        if keys.len()
+            != primary_key.get_partition_key().len() + primary_key.get_clustering_key().len()
+        {
+            let error =
+                create_error_response(ErrorCode::Invalid, "Primary key columns not provided", None);
+            let response = create_response_frame(ERROR, frame.header.stream, error).unwrap();
+            response.write(&mut stream).unwrap();
+            return;
         }
+        key = keys;
     };
 
-    println!("Key: {:?}", key);
     let mut all_rows = Vec::new();
-    let nodes = partitioner.get_nodes(&key[0]).unwrap();
+    let nodes: Vec<_> = partitioner
+        .get_nodes(&key[0])
+        .unwrap()
+        .into_iter()
+        .cloned()
+        .collect();
     let mut acks = 0;
+    // Add last_update column to compare the results and return the most recent one and update the rest
+    // by Read Repair.
+    // For SELECT queries, the last_update column is the last one in the result, so we can just slice it
+    query.add_col("last_update", &chrono::Utc::now().to_rfc3339());
 
-    for node in nodes {
+    for node in &nodes {
         if partitioner.is_me(node) {
             println!("Query received is for me");
             let mut ctx_write = ctx.write().unwrap();
@@ -100,11 +123,15 @@ pub fn handle_connection(
         }
         println!("Forwarding query to {}", node.id);
         let frame_type = FrameType::Query;
+        let query_clone = query.clone();
         let body = Body::Query(inc::query::Query {
-            query: query.clone(),
+            query: query_clone,
             table: table.clone(),
         });
-        let mut stream = TcpStream::connect((&node.ip_address[..], node.port + 1)).unwrap();
+        let Ok(mut stream) = TcpStream::connect((&node.ip_address[..], node.port + 1)) else {
+            println!("Failed to connect to node {}", node.id);
+            continue;
+        };
         send_message(&mut stream, frame_type, &body).unwrap();
         let res = read_inc_frame(&mut stream).unwrap();
         if let (FrameType::Result, Body::Result(result)) = res {
@@ -127,27 +154,45 @@ pub fn handle_connection(
         return;
     }
 
-    let rows = compare_responses(all_rows, cl);
-    let (opcode, result) = match rows {
-        Ok(rows) => (
-            RESULT,
-            create_result_response(vec_to_rows(rows, &query.get_cols(), &table, ctx)),
-        ),
-        Err(e) => (
-            ERROR,
-            create_error_response(ErrorCode::ServerError, &e.to_string(), None),
-        ),
+    let rows = if let Some(mut rows) = compare_responses(all_rows.clone(), cl) {
+        remove_last_update(&mut rows);
+        Some(rows)
+    } else {
+        None
     };
+    query.remove_col("last_update");
+    let (opcode, result) = (
+        RESULT,
+        create_result_response(vec_to_rows(
+            rows.clone(),
+            &query.get_cols(),
+            &table,
+            ctx.clone(),
+        )),
+    );
     let res_frame = create_response_frame(opcode, frame.header.stream, result).unwrap();
     res_frame.write(&mut stream).unwrap();
+
+    if rows.is_some() {
+        query.add_col("last_update", &chrono::Utc::now().to_rfc3339());
+        handle_read_repair(
+            &table,
+            query.get_cols(),
+            nodes.as_slice(),
+            all_rows.iter().map(|rows| rows.clone().unwrap()).collect(),
+            query.get_keys(),
+            partitioner,
+            ctx,
+        );
+    }
 }
 
 fn vec_to_rows(
-    rows: Option<Vec<Vec<String>>>,
+    rows: Option<Rows>,
     cols: &[String],
     table: &str,
     ctx: Arc<RwLock<Context>>,
-) -> Option<Rows> {
+) -> Option<NativeRows> {
     match rows {
         Some(some_rows) => {
             let cols_specs = cols
@@ -173,63 +218,66 @@ fn vec_to_rows(
                 Some(cols_specs),
             )
             .unwrap();
-            Some(Rows::new(metadata, some_rows.len() as i32, some_rows))
+            Some(NativeRows::new(metadata, some_rows.len() as i32, some_rows))
         }
         None => None,
     }
 }
 
-fn compare_responses(
-    responses: Vec<Option<Vec<Vec<String>>>>,
-    cl: &ConsistencyLevel,
-) -> std::io::Result<Option<Vec<Vec<String>>>> {
-    let valid_responses: Vec<Vec<Vec<String>>> = responses
+fn compare_responses(responses: Vec<Option<Rows>>, cl: &ConsistencyLevel) -> Option<Rows> {
+    let valid_responses: Vec<Rows> = responses
         .into_iter()
         .filter_map(|response| response)
         .collect();
     if valid_responses.is_empty() {
-        return Ok(None);
+        return None;
     }
     match cl {
-        ConsistencyLevel::Any | ConsistencyLevel::One => Ok(valid_responses.into_iter().next()),
-        ConsistencyLevel::Two | ConsistencyLevel::Three => {
-            let target = cl.to_u16();
-            let mut response_count: HashMap<Vec<Vec<String>>, usize> = HashMap::new();
+        ConsistencyLevel::Any | ConsistencyLevel::One => valid_responses.into_iter().next(),
+        ConsistencyLevel::Two | ConsistencyLevel::Three | ConsistencyLevel::Quorum => {
+            let target = if cl == &ConsistencyLevel::Quorum {
+                (valid_responses.len() / 2) + 1
+            } else {
+                cl.to_u16() as usize
+            };
+            let mut response_count: HashMap<Rows, usize> = HashMap::new();
             for response in valid_responses.iter() {
                 *response_count.entry(response.clone()).or_insert(0) += 1;
-                if response_count[response] == target as usize {
-                    return Ok(Some(response.clone()));
+                if response_count[response] >= target {
+                    return Some(response.clone());
                 }
             }
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Not enough nodes accomplished the query for the given consistency level",
-            ))
-        }
-        ConsistencyLevel::Quorum => {
-            let quorum = (valid_responses.len() / 2) + 1;
-            let mut response_count: HashMap<Vec<Vec<String>>, usize> = HashMap::new();
-            for response in valid_responses.iter() {
-                *response_count.entry(response.clone()).or_insert(0) += 1;
-                if response_count[response] >= quorum {
-                    return Ok(Some(response.clone()));
+            let mut res = valid_responses[0].clone();
+            for response in valid_responses.iter().skip(1) {
+                for (idx, row) in response.iter().enumerate() {
+                    if row.last().unwrap() > &res[idx].last().unwrap() {
+                        res[idx] = row.clone();
+                    }
                 }
             }
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Not enough nodes accomplished the query for the given consistency level",
-            ))
+            Some(res)
         }
         ConsistencyLevel::All => {
             let first_response = &valid_responses[0];
             if valid_responses.iter().all(|r| r == first_response) {
-                Ok(Some(first_response.clone()))
+                Some(first_response.clone())
             } else {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Not all nodes accomplished the query",
-                ))
+                let mut res = valid_responses[0].clone();
+                for response in valid_responses.iter().skip(1) {
+                    for (idx, row) in response.iter().enumerate() {
+                        if row.last().unwrap() > &res[idx].last().unwrap() {
+                            res[idx] = row.clone();
+                        }
+                    }
+                }
+                Some(res)
             }
         }
+    }
+}
+
+fn remove_last_update(rows: &mut Rows) {
+    for row in rows.iter_mut() {
+        row.pop();
     }
 }

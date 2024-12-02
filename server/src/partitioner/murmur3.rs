@@ -31,12 +31,10 @@ impl Partitioner {
         }
 
         let hash = murmur3_x64_128(&mut key.as_bytes(), 0)? as i64;
-        println!("Hash: {}", hash);
         let mut nodes = Vec::new();
         let mut found = -1;
         for (idx, node) in self.ring.iter().enumerate() {
             if hash >= node.token_range.start && hash <= node.token_range.end {
-                println!("Node: {:?}", node);
                 nodes.push(node);
                 found = idx as i32;
                 break;

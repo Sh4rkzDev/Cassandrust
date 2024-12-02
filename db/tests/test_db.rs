@@ -119,7 +119,6 @@ fn test_insert_and_delete() {
 
     assert_eq!(rows.len(), 3);
     let mut row = &rows[0];
-    println!("{:?}", row);
     assert_eq!(row.get("name").unwrap(), "phone");
     assert_eq!(row.get("price").unwrap(), "99.99");
     assert_eq!(row.get("quantity").unwrap(), "1");
