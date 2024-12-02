@@ -5,3 +5,4 @@ id,origin,destination,date,distance
 4,BCN,MAD,NULL,120
 5,MAD,BCN,NULL,120
 6,WAK,LAN,NULL,12530
+95,EZE,NULL,NULL,123

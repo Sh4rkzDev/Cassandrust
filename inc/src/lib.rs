@@ -1,8 +1,10 @@
+pub mod gossip;
 pub mod query;
 pub mod result;
 
 use std::io::{Read, Write};
 
+use gossip::{ack::Ack, syn::Syn};
 use query::Query;
 use result::Result;
 use shared::io_error;
@@ -11,6 +13,8 @@ use shared::io_error;
 pub enum FrameType {
     Query = 0x01,
     Result = 0x02,
+    Syn = 0x03,
+    Ack = 0x04,
 }
 
 impl FrameType {
@@ -20,6 +24,8 @@ impl FrameType {
         match buffer[0] {
             0x01 => Ok(FrameType::Query),
             0x02 => Ok(FrameType::Result),
+            0x03 => Ok(FrameType::Syn),
+            0x04 => Ok(FrameType::Ack),
             _ => Err(io_error!("Invalid frame type")),
         }
     }
@@ -28,6 +34,8 @@ impl FrameType {
         match self {
             FrameType::Query => writer.write_all(&[0x01u8]),
             FrameType::Result => writer.write_all(&[0x02u8]),
+            FrameType::Syn => writer.write_all(&[0x03u8]),
+            FrameType::Ack => writer.write_all(&[0x04u8]),
         }
     }
 }
@@ -36,6 +44,8 @@ impl FrameType {
 pub enum Body {
     Query(Query),
     Result(Result),
+    Syn(Syn),
+    Ack(Ack),
 }
 
 pub fn read_inc_frame<R: Read>(reader: &mut R) -> std::io::Result<(FrameType, Body)> {
@@ -48,6 +58,14 @@ pub fn read_inc_frame<R: Read>(reader: &mut R) -> std::io::Result<(FrameType, Bo
         FrameType::Result => {
             let result = Result::read(reader)?;
             Ok((FrameType::Result, Body::Result(result)))
+        }
+        FrameType::Syn => {
+            let syn = Syn::read(reader)?;
+            Ok((FrameType::Syn, Body::Syn(syn)))
+        }
+        FrameType::Ack => {
+            let ack = Ack::read(reader)?;
+            Ok((FrameType::Ack, Body::Ack(ack)))
         }
     }
 }
@@ -63,8 +81,13 @@ pub fn write_inc_frame<W: Write>(
             query.write(writer)?;
         }
         (FrameType::Result, Body::Result(result)) => {
-            println!("RESULT: {:?}", result);
             result.write(writer)?;
+        }
+        (FrameType::Syn, Body::Syn(syn)) => {
+            syn.write(writer)?;
+        }
+        (FrameType::Ack, Body::Ack(ack)) => {
+            ack.write(writer)?;
         }
         _ => return Err(io_error!("Invalid frame type")),
     }

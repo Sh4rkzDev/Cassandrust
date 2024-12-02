@@ -60,6 +60,7 @@ impl Partitioner {
 /// Used for debugging purposes.
 ///
 /// Generates sample keys and hashes to test the partitioner and hashing function to see where the query will be routed.
+#[allow(dead_code)]
 pub fn generate_sample_keys_and_hashes(sample_size: usize) {
     let mut rng = rand::thread_rng();
 

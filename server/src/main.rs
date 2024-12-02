@@ -5,7 +5,9 @@ use std::{
 };
 
 use clap::Parser;
-use connections::{client::handle_connection, node::handle_internode_communication};
+use connections::{
+    client::handle_connection, gossip::manager::GossipManager, node::handle_internode_communication,
+};
 use db::initialize_context;
 use partitioner::murmur3::Partitioner;
 use shared::{get_keyspace, get_workspace, set_keyspace};
@@ -35,9 +37,13 @@ fn main() {
 
     let node_listener = TcpListener::bind(format!("127.0.0.1:{}", node.port.unwrap() + 1)).unwrap();
     let ctx_clone = Arc::clone(&ctx);
+    let manager = Arc::new(RwLock::new(GossipManager::new(
+        &partitioner.self_node,
+        &partitioner.ring,
+    )));
     thread::spawn(move || {
         set_keyspace(node_dir.join("sim"));
-        handle_internode_communication(node_listener, ctx_clone);
+        handle_internode_communication(node_listener, ctx_clone, manager);
     });
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", node.port.unwrap())).unwrap();
