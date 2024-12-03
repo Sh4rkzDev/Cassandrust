@@ -32,7 +32,7 @@ impl GossipManager {
             self_node: RwLock::new(Peer {
                 id: self_node.id.clone(),
                 ip: self_node.ip_address.clone(),
-                port: self_node.port,
+                port: self_node.port + 1,
                 last_heartbeat: 0,
                 alive: true,
             }),

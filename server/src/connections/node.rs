@@ -20,8 +20,9 @@ pub(crate) fn handle_internode_communication(
 ) {
     let ks = get_keyspace();
     let manager_clone = Arc::clone(&manager);
+    let node_dir = ctx.read().unwrap().node_dir.clone();
     thread::spawn(move || {
-        gossip_starter(manager_clone);
+        gossip_starter(manager_clone, &node_dir);
     });
 
     while let Ok(stream) = socket.accept() {
@@ -55,7 +56,7 @@ fn handle_connection(
             .unwrap_or_else(|_| {});
         }
         (FrameType::Syn, Body::Syn(syn)) => {
-            handle_gossip(syn, stream, manager);
+            handle_gossip(syn, stream, manager, &ctx.read().unwrap().node_dir);
         }
         _ => {
             println!("Invalid frame type");

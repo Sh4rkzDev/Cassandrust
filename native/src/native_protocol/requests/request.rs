@@ -108,6 +108,13 @@ impl Request {
         }
     }
 
+    pub fn get_query_str(&self) -> Option<String> {
+        match self {
+            Request::Query(query) => Some(query.query_str.clone()),
+            _ => None,
+        }
+    }
+
     pub fn is_query(&self) -> bool {
         matches!(self, Request::Query(_))
     }

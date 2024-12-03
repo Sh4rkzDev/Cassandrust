@@ -32,6 +32,13 @@ impl Body {
         }
     }
 
+    pub fn get_query_str(&self) -> Option<String> {
+        match self {
+            Body::Request(request) => request.get_query_str(),
+            Body::Response(_) => None,
+        }
+    }
+
     pub fn get_rows(&self) -> Option<Vec<Vec<String>>> {
         match self {
             Body::Request(_) => None,

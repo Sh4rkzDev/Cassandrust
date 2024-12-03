@@ -1,6 +1,7 @@
 use std::{
     io,
     net::{SocketAddr, TcpStream},
+    path::Path,
     sync::{Arc, RwLock},
     thread,
     time::Duration,
@@ -12,21 +13,22 @@ use inc::{
 };
 use rand::seq::SliceRandom;
 
-use crate::connections::node::send_message;
+use crate::connections::{
+    hinted::{handle_hinted_handoff, has_hints},
+    node::send_message,
+};
 
 use super::manager::GossipManager;
 
-pub(crate) fn gossip_starter(manager: Arc<RwLock<GossipManager>>) {
+/// Start the gossip process. This will send a SYN message to 3 random peers every 5 seconds.
+///
+/// **MUST** be run in a separate thread and called only once.
+pub(crate) fn gossip_starter(manager: Arc<RwLock<GossipManager>>, node_dir: &Path) {
     loop {
-        manager
-            .write()
-            .unwrap()
-            .self_node
-            .write()
-            .unwrap()
-            .last_heartbeat += 1;
+        // id, ip:port
         let selected_peers = {
             let manager_read = manager.read().unwrap();
+            manager_read.self_node.write().unwrap().last_heartbeat += 1;
             let peers: Vec<(String, String)> = manager_read
                 .peers
                 .values()
@@ -46,8 +48,14 @@ pub(crate) fn gossip_starter(manager: Arc<RwLock<GossipManager>>) {
         let mut threads = Vec::new();
         for peer in selected_peers {
             let manager_clone = Arc::clone(&manager);
+            let node_dir_clone = node_dir.to_owned();
             threads.push(thread::spawn(move || {
-                gossip_to_peer(manager_clone, peer.0.as_str(), peer.1.as_str());
+                gossip_to_peer(
+                    manager_clone,
+                    peer.0.as_str(),
+                    peer.1.as_str(),
+                    &node_dir_clone,
+                );
             }));
         }
 
@@ -61,7 +69,12 @@ pub(crate) fn gossip_starter(manager: Arc<RwLock<GossipManager>>) {
     }
 }
 
-fn gossip_to_peer(manager: Arc<RwLock<GossipManager>>, peer_id: &str, peer_address: &str) {
+fn gossip_to_peer(
+    manager: Arc<RwLock<GossipManager>>,
+    peer_id: &str,
+    peer_address: &str,
+    node_dir: &Path,
+) {
     let address = peer_address.parse::<SocketAddr>().unwrap();
     let syn = {
         let manager_read = manager.read().unwrap();
@@ -133,6 +146,9 @@ fn gossip_to_peer(manager: Arc<RwLock<GossipManager>>, peer_id: &str, peer_addre
                 peer.last_heartbeat = ack.heartbeat;
 
                 ack.update_peers.iter().for_each(|peer| {
+                    if peer.id == manager_read.self_node.read().unwrap().id {
+                        return;
+                    }
                     if let Some(peer_lock) = manager_read.peers.get(&peer.id) {
                         let mut peer_data = peer_lock.write().unwrap();
                         if peer_data.last_heartbeat < peer.last_heartbeat {
@@ -163,5 +179,8 @@ fn gossip_to_peer(manager: Arc<RwLock<GossipManager>>, peer_id: &str, peer_addre
             let mut peer = manager_read.peers.get(peer_id).unwrap().write().unwrap();
             peer.alive = false;
         }
+    }
+    if has_hints(node_dir, peer_id) {
+        handle_hinted_handoff(node_dir, peer_id, peer_address);
     }
 }

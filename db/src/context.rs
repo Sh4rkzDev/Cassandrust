@@ -40,7 +40,9 @@ pub fn initialize_context(node: &Path) -> std::io::Result<Context> {
     let mut ctx = HashMap::new();
     for entry in std::fs::read_dir(node)? {
         let keyspace_path = entry?.path();
-        if keyspace_path.is_dir() {
+        if keyspace_path.is_dir()
+            && keyspace_path.file_name().unwrap().to_str().unwrap_or("") != "hints"
+        {
             let keyspace =
                 get_file_name(&keyspace_path, "Invalid path for node's dir".to_string())?;
             let tables = Tables::get_tables_schema(&keyspace_path)?;

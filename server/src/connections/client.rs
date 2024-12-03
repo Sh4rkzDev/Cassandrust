@@ -18,7 +18,7 @@ use native::{
 use shared::{get_keyspace, get_keyspace_name};
 
 use crate::{
-    connections::{node::send_message, read_repair::handle_read_repair},
+    connections::{hinted::add_hint, node::send_message, read_repair::handle_read_repair},
     partitioner::murmur3::{Partitioner, ALL_NODES},
 };
 
@@ -62,13 +62,12 @@ pub fn handle_connection(
             .unwrap();
         drop(read_guard);
         let primary_key = schema.get_primary_key();
-        let keys = binding
+        let mut keys = binding
             .iter()
             .filter(|(col, _)| {
                 primary_key.get_partition_key().contains(col)
                     || primary_key.get_clustering_key().contains(col)
             })
-            .map(|(_, val)| val.clone())
             .collect::<Vec<_>>();
 
         if keys.len()
@@ -80,7 +79,16 @@ pub fn handle_connection(
             response.write(&mut stream).unwrap();
             return;
         }
-        key = keys;
+        keys.sort_by(|(a, _), (b, _)| {
+            if primary_key.get_partition_key().contains(&a) {
+                return std::cmp::Ordering::Less;
+            } else if primary_key.get_partition_key().contains(&b) {
+                return std::cmp::Ordering::Greater;
+            } else {
+                return std::cmp::Ordering::Equal;
+            }
+        });
+        key = keys.iter().map(|(_, v)| v.clone()).collect();
     };
 
     let mut all_rows = Vec::new();
@@ -101,6 +109,7 @@ pub fn handle_connection(
             println!("Query received is for me");
             let mut ctx_write = ctx.write().unwrap();
             let res = query.process(&get_keyspace().join(table.clone()), &mut *ctx_write);
+            drop(ctx_write);
 
             if res.is_err() {
                 let error = create_error_response(
@@ -116,7 +125,6 @@ pub fn handle_connection(
                 return;
             }
 
-            drop(ctx_write);
             all_rows.push(res.unwrap());
             acks += 1;
             continue;
@@ -125,11 +133,18 @@ pub fn handle_connection(
         let frame_type = FrameType::Query;
         let query_clone = query.clone();
         let body = Body::Query(inc::query::Query {
-            query: query_clone,
+            query: query_clone.clone(),
             table: table.clone(),
         });
         let Ok(mut stream) = TcpStream::connect((&node.ip_address[..], node.port + 1)) else {
             println!("Failed to connect to node {}", node.id);
+            if query_clone.is_not_select() {
+                add_hint(
+                    &ctx.read().unwrap().node_dir,
+                    &node.id,
+                    &frame.body.get_query_str().unwrap(),
+                );
+            }
             continue;
         };
         send_message(&mut stream, frame_type, &body).unwrap();
@@ -138,7 +153,7 @@ pub fn handle_connection(
             all_rows.push(result.rows);
             acks += 1;
         } else {
-            panic!("Invalid frame type"); // TODO
+            println!("Invalid frame type after query: {:?}", res);
         }
     }
 

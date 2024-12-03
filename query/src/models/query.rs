@@ -150,6 +150,10 @@ impl Query {
         )
     }
 
+    pub fn is_not_select(&self) -> bool {
+        !matches!(self.statement, Statement::Select(_, _))
+    }
+
     pub fn add_col(&mut self, col: &str, val: &str) {
         match &mut self.statement {
             Statement::Select(cols, _) => cols.push(col.to_string()),

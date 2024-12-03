@@ -1,5 +1,6 @@
 use std::{
     net::TcpStream,
+    path::Path,
     sync::{Arc, RwLock},
 };
 
@@ -8,17 +9,31 @@ use inc::{
     Body, FrameType,
 };
 
-use crate::connections::node::send_message;
+use crate::connections::{
+    hinted::{handle_hinted_handoff, has_hints},
+    node::send_message,
+};
 
 use super::manager::GossipManager;
 
-pub(crate) fn handle_gossip(syn: Syn, mut stream: TcpStream, manager: Arc<RwLock<GossipManager>>) {
+/// Handle a gossip message from a peer
+pub(crate) fn handle_gossip(
+    syn: Syn,
+    mut stream: TcpStream,
+    manager: Arc<RwLock<GossipManager>>,
+    node_dir: &Path,
+) {
     let mut new_peers = Vec::new();
     let mut send_peers = Vec::new();
     let heartbeat;
     {
         let manager_read = manager.read().unwrap();
-        heartbeat = manager_read.self_node.read().unwrap().last_heartbeat;
+        let my_id;
+        {
+            let self_node = manager_read.self_node.read().unwrap();
+            my_id = self_node.id.clone();
+            heartbeat = self_node.last_heartbeat;
+        }
 
         // Update the peer that sent the SYN
         if let Some(peer_lock) = manager_read.peers.get(&syn.sender) {
@@ -28,7 +43,7 @@ pub(crate) fn handle_gossip(syn: Syn, mut stream: TcpStream, manager: Arc<RwLock
         } else {
             new_peers.push(Peer {
                 id: syn.sender.clone(),
-                ip: syn.ip,
+                ip: syn.ip.clone(),
                 port: syn.port,
                 last_heartbeat: syn.heartbeat,
                 alive: true,
@@ -45,6 +60,9 @@ pub(crate) fn handle_gossip(syn: Syn, mut stream: TcpStream, manager: Arc<RwLock
 
         // Update the peers that the sender knows about
         for peer in &syn.known_peers {
+            if peer.id == my_id {
+                continue;
+            }
             if let Some(peer_lock) = manager_read.peers.get(&peer.id) {
                 let mut peer_data = peer_lock.write().unwrap();
                 // Maybe until I get the write lock, the peer has been updated
@@ -74,4 +92,8 @@ pub(crate) fn handle_gossip(syn: Syn, mut stream: TcpStream, manager: Arc<RwLock
         update_peers: send_peers,
     });
     send_message(&mut stream, FrameType::Ack, &body).unwrap();
+
+    if has_hints(node_dir, &syn.sender) {
+        handle_hinted_handoff(node_dir, &syn.sender, &format!("{}:{}", syn.ip, syn.port));
+    }
 }
