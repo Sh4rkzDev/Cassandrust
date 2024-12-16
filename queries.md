@@ -13,36 +13,15 @@ This document contains a series of queries that can be used to interact with the
 ## Create Tables
 
 ```sql
-CREATE TABLE users (\
-    id int,\
-    name text,\
-    email text,\
-    signup_date timestamp,\
-    active boolean,\
-    PRIMARY KEY (id, name)\
-);
+CREATE TABLE users (id int,name text, email text, signup_date timestamp, active boolean, PRIMARY KEY (id, name));
 ```
 
 ```sql
-CREATE TABLE flights (
-    flight_id int,
-    airline text,
-    velocity int,
-    date timestamp,
-    duration int,
-    PRIMARY KEY (flight_id, date)
-);
+CREATE TABLE flights (flight_id int, airline text, velocity int, date timestamp, duration int, PRIMARY KEY (flight_id, date));
 ```
 
 ```sql
-CREATE TABLE bookings (
-    booking_id int,
-    user_id int,
-    flight_id int,
-    booking_date timestamp,
-    confirmed boolean,
-    PRIMARY KEY (booking_id, booking_date)
-);
+CREATE TABLE bookings (booking_id int, user_id int, flight_id int, booking_date timestamp, confirmed boolean, PRIMARY KEY (booking_id, booking_date));
 ```
 
 ## Insert Data
