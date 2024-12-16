@@ -36,7 +36,10 @@ fn handle_connection(parts: Vec<&str>) {
     } else {
         "127.0.0.1:9042".parse().unwrap()
     };
-    let mut stream = TcpStream::connect(addr).unwrap();
+    let Ok(mut stream) = TcpStream::connect(addr) else {
+        println!("Failed to connect to ip: {addr}");
+        return;
+    };
     let frame = create_request(STARTUP, 1, None, None).unwrap();
 
     frame.write(&mut stream).unwrap();

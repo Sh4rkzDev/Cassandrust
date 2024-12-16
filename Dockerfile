@@ -3,7 +3,7 @@ FROM rust:1.83 AS builder
 WORKDIR /app
 
 COPY . .
-RUN cargo build --release
+RUN cargo build -r --bin server
 
 FROM ubuntu:22.04
 
