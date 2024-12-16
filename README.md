@@ -61,3 +61,11 @@ To test the program, run the following command:
 ```bash
 make test
 ```
+
+## Help
+
+To see all the available commands, run the following command:
+
+```bash
+make help
+```
