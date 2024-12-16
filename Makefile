@@ -38,8 +38,10 @@ client:
 	@cargo build -r --bin client
 	@echo "Running client..."
 	@./target/release/client
-	
 
+log-%:
+	@docker compose logs $*
+	
 help:
 	@echo "Available commands:"
 	@echo "  make build    - Build node image"
