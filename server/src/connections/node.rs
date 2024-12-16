@@ -44,6 +44,7 @@ fn handle_connection(
     let frame = read_inc_frame(&mut stream).unwrap();
     match frame {
         (FrameType::Query, Body::Query(mut query)) => {
+            println!("Received query from internode: '{:?}'", query.query);
             let res = query
                 .query
                 .process(&get_keyspace().join(query.table), &mut ctx.write().unwrap())
@@ -56,7 +57,20 @@ fn handle_connection(
             .unwrap_or_else(|_| {});
         }
         (FrameType::Syn, Body::Syn(syn)) => {
+            println!("Received gossip");
             handle_gossip(syn, stream, manager, &ctx.read().unwrap().node_dir);
+        }
+        (FrameType::Hinted, Body::Hinted(mut hinted)) => {
+            println!("Starting hinted handoff process");
+            for query in hinted.queries.iter_mut() {
+                query
+                    .query
+                    .process(
+                        &get_keyspace().join(query.table.clone()),
+                        &mut ctx.write().unwrap(),
+                    )
+                    .unwrap();
+            }
         }
         _ => {
             println!("Invalid frame type");

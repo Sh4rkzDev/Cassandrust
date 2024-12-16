@@ -1,11 +1,11 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     net::TcpStream,
     path::Path,
 };
 
-use inc::{Body, FrameType};
+use inc::{hinted::Hinted, query::Query, Body, FrameType};
 use query::process_query;
 
 use super::node::send_message;
@@ -23,23 +23,30 @@ pub(crate) fn handle_hinted_handoff(node_dir: &Path, peer_id: &str, peer_addr: &
         return;
     }
     let reader = BufReader::new(std::fs::File::open(&node_hints).unwrap());
-    let mut stream = TcpStream::connect(peer_addr).unwrap();
+    let mut queries = vec![];
     for hint in reader.lines() {
         let hint = hint.unwrap();
         if hint.is_empty() {
             continue;
         }
         let query = process_query(&hint).unwrap();
-        let body = Body::Query(inc::query::Query {
+        queries.push(Query {
             table: query.1,
             query: query.0,
         });
-        match send_message(&mut stream, FrameType::Query, &body) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Failed to send hinted handoff to {}: {}", peer_id, e);
-                return;
-            }
+    }
+    let mut stream = TcpStream::connect(peer_addr).unwrap();
+    match send_message(
+        &mut stream,
+        FrameType::Hinted,
+        &Body::Hinted(Hinted { queries }),
+    ) {
+        Ok(_) => {
+            println!("Succesfully sent Hinted Handoff to {} ", peer_id);
+        }
+        Err(e) => {
+            println!("Failed to send hinted handoff to {}: {}", peer_id, e);
+            return;
         }
     }
     std::fs::remove_file(node_hints).unwrap();
@@ -50,5 +57,9 @@ pub(crate) fn add_hint(node_dir: &Path, node: &str, query_str: &str) {
     if !node_hints.exists() {
         File::create(&node_hints).unwrap();
     }
-    std::fs::write(&node_hints, query_str.to_owned() + "\n").unwrap();
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&node_hints)
+        .unwrap();
+    writeln!(file, "{}", query_str).unwrap();
 }

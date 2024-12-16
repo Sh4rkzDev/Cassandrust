@@ -2,6 +2,7 @@ use std::{cmp::Ordering, collections::HashMap, path::Path};
 
 use db::Context;
 use serde::{Deserialize, Serialize};
+use shared::io_error;
 
 use super::{
     statement::{Cols, OrderMode, Statement},
@@ -174,7 +175,7 @@ impl Query {
             Statement::Insert(row) | Statement::Update(row) => {
                 row.remove(col);
             }
-            _ => panic!("Should not reach here"),
+            _ => {}
         }
     }
 }
@@ -184,6 +185,14 @@ fn order_rows(
     order: &Option<(String, OrderMode)>,
     to_print: &[String],
 ) -> std::io::Result<Option<Vec<Cols>>> {
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    for col in to_print {
+        if !rows[0].contains_key(col) {
+            return Err(io_error!(format!("Column '{col}' does not exist")));
+        }
+    }
     if let Some((order_by, order_mode)) = order {
         match order_mode {
             OrderMode::Asc => rows.sort_by(|a, b| {

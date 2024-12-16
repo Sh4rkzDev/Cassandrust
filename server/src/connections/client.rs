@@ -212,14 +212,14 @@ fn vec_to_rows(
 ) -> Option<NativeRows> {
     match rows {
         Some(some_rows) => {
+            let read_guard = ctx.read().unwrap();
             let cols_specs = cols
                 .iter()
                 .map(|col_name| {
                     ColumnSpec::new(
                         col_name.clone(),
                         DataTypeFlags::from_schema_type(
-                            ctx.read()
-                                .unwrap()
+                            read_guard
                                 .get_table_schema(&get_keyspace_name().unwrap(), table)
                                 .unwrap()
                                 .get_schema_type(&col_name)
@@ -228,6 +228,7 @@ fn vec_to_rows(
                     )
                 })
                 .collect();
+            drop(read_guard);
             let metadata = RowMetadata::new(
                 RowsMetadaFlagsMask::GlobalTablesSpec as i32,
                 cols.len() as i32,

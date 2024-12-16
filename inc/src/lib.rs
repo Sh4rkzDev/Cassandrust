@@ -1,12 +1,15 @@
 pub mod gossip;
+pub mod hinted;
 pub mod query;
 pub mod result;
 
 use std::io::{Read, Write};
 
 use gossip::{ack::Ack, syn::Syn};
+use hinted::Hinted;
 use query::Query;
 use result::Result;
+use serde::{Deserialize, Serialize};
 use shared::io_error;
 
 #[derive(Debug)]
@@ -15,6 +18,7 @@ pub enum FrameType {
     Result = 0x02,
     Syn = 0x03,
     Ack = 0x04,
+    Hinted = 0x05,
 }
 
 impl FrameType {
@@ -26,6 +30,7 @@ impl FrameType {
             0x02 => Ok(FrameType::Result),
             0x03 => Ok(FrameType::Syn),
             0x04 => Ok(FrameType::Ack),
+            0x05 => Ok(FrameType::Hinted),
             _ => Err(io_error!("Invalid frame type")),
         }
     }
@@ -36,16 +41,18 @@ impl FrameType {
             FrameType::Result => writer.write_all(&[0x02u8]),
             FrameType::Syn => writer.write_all(&[0x03u8]),
             FrameType::Ack => writer.write_all(&[0x04u8]),
+            FrameType::Hinted => writer.write_all(&[0x05u8]),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Body {
     Query(Query),
     Result(Result),
     Syn(Syn),
     Ack(Ack),
+    Hinted(Hinted),
 }
 
 pub fn read_inc_frame<R: Read>(reader: &mut R) -> std::io::Result<(FrameType, Body)> {
@@ -66,6 +73,10 @@ pub fn read_inc_frame<R: Read>(reader: &mut R) -> std::io::Result<(FrameType, Bo
         FrameType::Ack => {
             let ack = Ack::read(reader)?;
             Ok((FrameType::Ack, Body::Ack(ack)))
+        }
+        FrameType::Hinted => {
+            let hinted = Hinted::read(reader)?;
+            Ok((FrameType::Hinted, Body::Hinted(hinted)))
         }
     }
 }
@@ -88,6 +99,9 @@ pub fn write_inc_frame<W: Write>(
         }
         (FrameType::Ack, Body::Ack(ack)) => {
             ack.write(writer)?;
+        }
+        (FrameType::Hinted, Body::Hinted(hinted)) => {
+            hinted.write(writer)?;
         }
         _ => return Err(io_error!("Invalid frame type")),
     }

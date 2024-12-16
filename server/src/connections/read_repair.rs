@@ -79,7 +79,8 @@ fn get_nodes_updates(responses: &[Rows]) -> Vec<Rows> {
     for i in 0..responses[0].len() {
         let mut max = &responses[0][i];
         for res in responses.iter() {
-            if res[i].last().unwrap() > max.last().unwrap() {
+            let last = res[i].last().unwrap();
+            if (last != "NULL" && last > max.last().unwrap()) || max.last().unwrap() == "NULL" {
                 max = &res[i];
             }
         }

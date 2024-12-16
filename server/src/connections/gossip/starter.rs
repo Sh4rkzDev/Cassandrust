@@ -75,7 +75,20 @@ fn gossip_to_peer(
     peer_address: &str,
     node_dir: &Path,
 ) {
-    let address = peer_address.to_socket_addrs().unwrap().next().unwrap();
+    let Ok(mut addrs) = peer_address.to_socket_addrs() else {
+        println!("Error while trying to resolve address of {peer_id}");
+        let manager_read = manager.read().unwrap();
+        let mut peer = manager_read.peers.get(peer_id).unwrap().write().unwrap();
+        peer.alive = false;
+        return;
+    };
+    let Some(address) = addrs.next() else {
+        println!("No address found for {}", peer_id);
+        let manager_read = manager.read().unwrap();
+        let mut peer = manager_read.peers.get(peer_id).unwrap().write().unwrap();
+        peer.alive = false;
+        return;
+    };
     let syn = {
         let manager_read = manager.read().unwrap();
         let self_node = manager_read.self_node.read().unwrap();

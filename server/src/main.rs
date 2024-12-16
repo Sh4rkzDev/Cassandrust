@@ -4,6 +4,7 @@ use std::{
     thread,
 };
 
+use chrono::Local;
 use clap::Parser;
 use connections::{
     client::handle_connection, gossip::manager::GossipManager, node::handle_internode_communication,
@@ -47,7 +48,10 @@ fn main() {
     });
 
     let listener = TcpListener::bind("0.0.0.0:9042").unwrap();
-    println!("Server up and listening");
+    println!(
+        "Server up and listening at {}",
+        Local::now().format("%Y-%m-%d %H:%M:%S")
+    );
     // generate_sample_keys_and_hashes(50);
     while let Ok(stream) = listener.accept() {
         let partitioner = std::sync::Arc::clone(&partitioner);
