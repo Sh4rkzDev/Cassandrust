@@ -1,4 +1,5 @@
 default: build
+.PHONY: client
 
 build:
 	@echo "Building images..."
@@ -32,6 +33,13 @@ test:
 	@echo "Running tests..."
 	@cargo test
 
+client:
+	@echo "Compiling client binary..."
+	@cargo build -r --bin client
+	@echo "Running client..."
+	@./target/release/client
+	
+
 help:
 	@echo "Available commands:"
 	@echo "  make build    - Build node image"
@@ -40,4 +48,5 @@ help:
 	@echo "  make start-%  - Start a specific node"
 	@echo "  make stop-%   - Stop a specific node"
 	@echo "  make destroy  - Stop and destroy the cluster"
+	@echo "  make client   - Compile and run the client"
 	@echo "  make test     - Run tests"

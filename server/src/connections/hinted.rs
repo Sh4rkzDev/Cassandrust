@@ -16,6 +16,7 @@ pub(crate) fn has_hints(node_dir: &Path, node: &str) -> bool {
 }
 
 pub(crate) fn handle_hinted_handoff(node_dir: &Path, peer_id: &str, peer_addr: &str) {
+    println!("Handling hinted handoff for {peer_id}");
     let hints_dir = node_dir.join("hints");
     let node_hints = hints_dir.join(peer_id).with_extension("txt");
     if !node_hints.exists() {
@@ -53,6 +54,7 @@ pub(crate) fn handle_hinted_handoff(node_dir: &Path, peer_id: &str, peer_addr: &
 }
 
 pub(crate) fn add_hint(node_dir: &Path, node: &str, query_str: &str) {
+    println!("Adding hint for {node}: {query_str}");
     let node_hints = node_dir.join("hints").join(node).with_extension("txt");
     if !node_hints.exists() {
         File::create(&node_hints).unwrap();

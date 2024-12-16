@@ -57,7 +57,7 @@ fn handle_connection(
             .unwrap_or_else(|_| {});
         }
         (FrameType::Syn, Body::Syn(syn)) => {
-            println!("Received gossip");
+            println!("Handling gossip syn message");
             handle_gossip(syn, stream, manager, &ctx.read().unwrap().node_dir);
         }
         (FrameType::Hinted, Body::Hinted(mut hinted)) => {

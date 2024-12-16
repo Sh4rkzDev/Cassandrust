@@ -50,6 +50,7 @@ pub fn handle_connection(
     println!("Waiting for query...");
     let frame = read_request(&mut reader).unwrap();
     let (mut query, table) = frame.body.get_query().unwrap();
+    println!("Received query: {}", frame.body.get_query_str().unwrap());
 
     let key;
     if query.is_ddl() {
@@ -106,7 +107,7 @@ pub fn handle_connection(
 
     for node in &nodes {
         if partitioner.is_me(node) {
-            println!("Query received is for me");
+            println!("Executing query...");
             let mut ctx_write = ctx.write().unwrap();
             let res = query.process(&get_keyspace().join(table.clone()), &mut *ctx_write);
             drop(ctx_write);
@@ -137,7 +138,7 @@ pub fn handle_connection(
             table: table.clone(),
         });
         let Ok(mut stream) = TcpStream::connect((&node.ip_address[..], node.port + 1)) else {
-            println!("Failed to connect to node {}", node.ip_address);
+            println!("Failed to connect to {}", node.ip_address);
             if query_clone.is_not_select() {
                 add_hint(
                     &ctx.read().unwrap().node_dir,
@@ -168,6 +169,7 @@ pub fn handle_connection(
         );
         let response = create_response_frame(ERROR, frame.header.stream, error).unwrap();
         response.write(&mut stream).unwrap();
+        println!("Not enough nodes responded to query");
         return;
     }
 
@@ -189,6 +191,7 @@ pub fn handle_connection(
     );
     let res_frame = create_response_frame(opcode, frame.header.stream, result).unwrap();
     res_frame.write(&mut stream).unwrap();
+    println!("Query executed successfully");
 
     if rows.is_some() {
         query.add_col("last_update", &chrono::Utc::now().to_rfc3339());
