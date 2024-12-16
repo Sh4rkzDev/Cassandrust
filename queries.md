@@ -13,7 +13,7 @@ This document contains a series of queries that can be used to interact with the
 ## Create Tables
 
 ```sql
-CREATE TABLE users (id int,name text, email text, signup_date timestamp, active boolean, PRIMARY KEY (id, name));
+CREATE TABLE users (id int, name text, email text, signup_date timestamp, active boolean, PRIMARY KEY (id, name));
 ```
 
 ```sql
