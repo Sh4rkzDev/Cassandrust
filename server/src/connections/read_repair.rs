@@ -44,7 +44,10 @@ pub(crate) fn handle_read_repair(
                 .collect::<Vec<String>>()
                 .join(" AND "),
         );
-        println!("Read repairing query for {}: {}", node.id, query_str);
+        println!(
+            "Read repairing query for {}: {}",
+            node.ip_address, query_str
+        );
         let mut query = process_query(&query_str).unwrap();
         if partitioner.is_me(node) {
             query
@@ -60,7 +63,10 @@ pub(crate) fn handle_read_repair(
                 query: query.0,
             });
             let Ok(mut stream) = TcpStream::connect((&node.ip_address[..], node.port + 1)) else {
-                println!("Failed to connect to node {} for read repairing.", node.id);
+                println!(
+                    "Failed to connect to node {} for read repairing.",
+                    node.ip_address
+                );
                 continue;
             };
             send_message(&mut stream, FrameType::Query, &body).unwrap();

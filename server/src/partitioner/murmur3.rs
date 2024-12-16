@@ -15,9 +15,13 @@ impl Partitioner {
     /// Reads the configuration file and returns a new Partitioner instance.  
     /// **Must** be execute at node startup.
     #[must_use]
-    pub fn read_config(port: u16) -> Self {
+    pub fn read_config(ip: String) -> Self {
         let nodes = load_nodes_config().unwrap();
-        let self_node = nodes.iter().find(|node| node.port == port).unwrap().clone();
+        let self_node = nodes
+            .iter()
+            .find(|node| node.ip_address == ip)
+            .unwrap()
+            .clone();
         Self {
             ring: nodes,
             self_node,
@@ -51,7 +55,7 @@ impl Partitioner {
     }
 
     pub fn is_me(&self, node: &Node) -> bool {
-        node.id == self.self_node.id
+        node.ip_address == self.self_node.ip_address
     }
 }
 

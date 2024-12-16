@@ -1,6 +1,6 @@
 use std::{
     io,
-    net::{SocketAddr, TcpStream},
+    net::{TcpStream, ToSocketAddrs},
     path::Path,
     sync::{Arc, RwLock},
     thread,
@@ -35,7 +35,7 @@ pub(crate) fn gossip_starter(manager: Arc<RwLock<GossipManager>>, node_dir: &Pat
                 .map(|peer| {
                     let peer = peer.read().unwrap();
                     (
-                        peer.id.clone(),
+                        peer.ip.clone(),
                         peer.ip.clone() + ":" + &peer.port.to_string(),
                     )
                 })
@@ -75,12 +75,12 @@ fn gossip_to_peer(
     peer_address: &str,
     node_dir: &Path,
 ) {
-    let address = peer_address.parse::<SocketAddr>().unwrap();
+    let address = peer_address.to_socket_addrs().unwrap().next().unwrap();
     let syn = {
         let manager_read = manager.read().unwrap();
         let self_node = manager_read.self_node.read().unwrap();
         Syn {
-            sender: self_node.id.clone(),
+            sender: self_node.ip.clone(),
             ip: self_node.ip.clone(),
             port: self_node.port,
             heartbeat: self_node.last_heartbeat,
@@ -90,7 +90,6 @@ fn gossip_to_peer(
                 .map(|peer| {
                     let peer_data = peer.read().unwrap();
                     Peer {
-                        id: peer_data.id.clone(),
                         ip: peer_data.ip.clone(),
                         port: peer_data.port,
                         last_heartbeat: peer_data.last_heartbeat,
@@ -146,10 +145,10 @@ fn gossip_to_peer(
                 peer.last_heartbeat = ack.heartbeat;
 
                 ack.update_peers.iter().for_each(|peer| {
-                    if peer.id == manager_read.self_node.read().unwrap().id {
+                    if peer.ip == manager_read.self_node.read().unwrap().ip {
                         return;
                     }
-                    if let Some(peer_lock) = manager_read.peers.get(&peer.id) {
+                    if let Some(peer_lock) = manager_read.peers.get(&peer.ip) {
                         let mut peer_data = peer_lock.write().unwrap();
                         if peer_data.last_heartbeat < peer.last_heartbeat {
                             peer_data.last_heartbeat = peer.last_heartbeat;
@@ -164,8 +163,8 @@ fn gossip_to_peer(
             if !new_peers.is_empty() {
                 let mut manager_write = manager.write().unwrap();
                 for peer in new_peers {
-                    manager_write.add_peer(peer.id.clone(), peer.ip.clone(), peer.port);
-                    if let Some(peer_lock) = manager_write.peers.get_mut(&peer.id) {
+                    manager_write.add_peer(peer.ip.clone(), peer.port);
+                    if let Some(peer_lock) = manager_write.peers.get_mut(&peer.ip) {
                         let mut peer_data = peer_lock.write().unwrap();
                         peer_data.last_heartbeat = peer.last_heartbeat;
                         peer_data.alive = peer.alive;

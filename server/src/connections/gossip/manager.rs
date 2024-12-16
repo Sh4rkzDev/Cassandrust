@@ -13,13 +13,12 @@ impl GossipManager {
     pub(crate) fn new(self_node: &Node, nodes: &[Node]) -> Self {
         let mut peers = HashMap::new();
         for node in nodes {
-            if node.id == self_node.id {
+            if node.ip_address == self_node.ip_address {
                 continue;
             }
             peers.insert(
-                node.id.clone(),
+                node.ip_address.clone(),
                 RwLock::new(Peer {
-                    id: node.id.clone(),
                     ip: node.ip_address.clone(),
                     port: node.port + 1,
                     last_heartbeat: 0,
@@ -30,7 +29,6 @@ impl GossipManager {
 
         GossipManager {
             self_node: RwLock::new(Peer {
-                id: self_node.id.clone(),
                 ip: self_node.ip_address.clone(),
                 port: self_node.port + 1,
                 last_heartbeat: 0,
@@ -40,11 +38,10 @@ impl GossipManager {
         }
     }
 
-    pub(crate) fn add_peer(&mut self, id: String, ip: String, port: u16) {
+    pub(crate) fn add_peer(&mut self, ip: String, port: u16) {
         self.peers.insert(
-            id.clone(),
+            ip.clone(),
             RwLock::new(Peer {
-                id,
                 ip,
                 port,
                 last_heartbeat: 0,

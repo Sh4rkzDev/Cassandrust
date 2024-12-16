@@ -160,7 +160,7 @@ impl Query {
             Statement::Insert(row) | Statement::Update(row) => {
                 row.insert(col.to_string(), val.to_string());
             }
-            _ => panic!("Should not reach here"),
+            _ => {}
         }
     }
 

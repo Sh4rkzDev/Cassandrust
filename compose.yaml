@@ -1,0 +1,64 @@
+services:
+  node1:
+    build: .
+    command: ["./server", "-n", "node1"]
+    ports:
+      - "9042:9042"
+    expose:
+      - "9043"
+    volumes:
+      - ./store/node_1:/app/data
+    networks:
+      - cassandra-network
+
+  node2:
+    build: .
+    command: ["./server", "-n", "node2"]
+    ports:
+      - "9044:9042"
+    expose:
+      - "9043"
+    volumes:
+      - ./store/node_2:/app/data
+    networks:
+      - cassandra-network
+
+  node3:
+    build: .
+    command: ["./server", "-n", "node3"]
+    ports:
+      - "9046:9042"
+    expose:
+      - "9043"
+    volumes:
+      - ./store/node_3:/app/data
+    networks:
+      - cassandra-network
+
+  node4:
+    build: .
+    command: ["./server", "-n", "node4"]
+    ports:
+      - "9048:9042"
+    expose:
+      - "9043"
+    volumes:
+      - ./store/node_4:/app/data
+    networks:
+      - cassandra-network
+
+  node5:
+    build: .
+    command: ["./server", "-n", "node5"]
+    ports:
+      - "9050:9042"
+    expose:
+      - "9043"
+    volumes:
+      - ./store/node_5:/app/data
+    networks:
+      - cassandra-network
+
+networks:
+  cassandra-network:
+    driver: bridge

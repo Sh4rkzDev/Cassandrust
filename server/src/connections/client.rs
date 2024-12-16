@@ -129,7 +129,7 @@ pub fn handle_connection(
             acks += 1;
             continue;
         }
-        println!("Forwarding query to {}", node.id);
+        println!("Forwarding query to {}", node.ip_address);
         let frame_type = FrameType::Query;
         let query_clone = query.clone();
         let body = Body::Query(inc::query::Query {
@@ -137,11 +137,11 @@ pub fn handle_connection(
             table: table.clone(),
         });
         let Ok(mut stream) = TcpStream::connect((&node.ip_address[..], node.port + 1)) else {
-            println!("Failed to connect to node {}", node.id);
+            println!("Failed to connect to node {}", node.ip_address);
             if query_clone.is_not_select() {
                 add_hint(
                     &ctx.read().unwrap().node_dir,
-                    &node.id,
+                    &node.ip_address,
                     &frame.body.get_query_str().unwrap(),
                 );
             }

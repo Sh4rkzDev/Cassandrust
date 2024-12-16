@@ -11,7 +11,6 @@ pub struct TokenRange {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Node {
-    pub id: String,
     pub ip_address: String,
     pub port: u16,
     pub token_range: TokenRange,
